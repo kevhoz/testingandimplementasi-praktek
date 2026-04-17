@@ -1,0 +1,27 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(file *.md)",
+      "Bash(mkdir -p \"D:/OneDrive/01_UBM/Kelas/18 Semester Genap 2025-2026/SIH07 - TESTING DAN IMPLEMENTASI/testingandimplementasi-praktek/jawaban/praktek5_database_testing/src\")",
+      "Bash(mkdir -p \"D:/OneDrive/01_UBM/Kelas/18 Semester Genap 2025-2026/SIH07 - TESTING DAN IMPLEMENTASI/testingandimplementasi-praktek/jawaban/praktek5_database_testing/tests\")",
+      "Bash(powershell -Command \"python generate_images_p5.py\")",
+      "Bash(powershell -Command \"Get-Command python* | Select-Object -ExpandProperty Source\")",
+      "Read(//c/Users/kevin/AppData/Local/Programs/Python//**)",
+      "Bash(\"/c/Users/kevin/AppData/Local/Programs/Python/Python311/python.exe\" generate_images_p5.py)",
+      "Bash(powershell *)",
+      "Bash(python generate_images_p9.py)",
+      "Bash(python generate_images_p7.py)",
+      "Bash(python generate_images_p6.py)",
+      "Bash(python generate_images_p8.py)",
+      "Bash(py generate_images_p7.py)",
+      "Bash(/c/Python*/python.exe generate_images_p7.py)",
+      "Bash(python3 generate_images_p9.py)",
+      "Bash(py generate_images_p9.py)",
+      "Bash(py -3 generate_images_p9.py)",
+      "Bash(py generate_images_p6.py)",
+      "Bash(py generate_images_p8.py)",
+      "Bash(ls /c/Python*)",
+      "Bash(py --version)"
+    ]
+  }
+}

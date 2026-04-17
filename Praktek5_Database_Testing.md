@@ -39,6 +39,55 @@ Dengan cara ini, setiap test selalu mulai dari kondisi database yang bersih.
 
 ---
 
+## Pola PDO yang Digunakan
+
+Sebelum mulai coding, pahami 3 pola PDO yang akan sering digunakan:
+
+### Pola 1 — INSERT dan ambil ID baru
+
+```php
+$stmt = $this->db->prepare(
+    'INSERT INTO products (name, price) VALUES (:name, :price)'
+);
+$stmt->execute([':name' => 'Buku', ':price' => 50000]);
+$id = (int) $this->db->lastInsertId();
+```
+
+### Pola 2 — SELECT satu baris
+
+```php
+$stmt = $this->db->prepare(
+    'SELECT * FROM products WHERE id = :id'
+);
+$stmt->execute([':id' => $id]);
+$row = $stmt->fetch(PDO::FETCH_ASSOC);
+// $row adalah array data, atau false jika tidak ada
+```
+
+### Pola 3 — SELECT banyak baris
+
+```php
+$stmt = $this->db->prepare(
+    'SELECT * FROM products WHERE category = :cat'
+);
+$stmt->execute([':cat' => 'Elektronik']);
+$rows = $stmt->fetchAll(PDO::FETCH_ASSOC);
+// $rows adalah array of array
+```
+
+### Pola 4 — UPDATE / DELETE, cek apakah berhasil
+
+```php
+$stmt = $this->db->prepare(
+    'UPDATE products SET stock = :stock WHERE id = :id'
+);
+$stmt->execute([':stock' => 20, ':id' => $id]);
+$affected = $stmt->rowCount();
+// rowCount() > 0 berarti ada baris yang terubah
+```
+
+---
+
 ## Skenario
 
 Anda diminta membuat sistem manajemen produk dan pesanan untuk **Toko Online "TokoKita"**.
@@ -64,35 +113,6 @@ Pastikan sudah terinstall:
 Buka MySQL client (phpMyAdmin / HeidiSQL / terminal) dan jalankan script berikut:
 
 ![Setup SQL](images/p5_setup_sql.png)
-
-```sql
--- Buat database khusus untuk testing
-CREATE DATABASE IF NOT EXISTS tokokita_testing
-  CHARACTER SET utf8mb4
-  COLLATE utf8mb4_unicode_ci;
-
-USE tokokita_testing;
-
--- Tabel produk
-CREATE TABLE products (
-    id       INT AUTO_INCREMENT PRIMARY KEY,
-    name     VARCHAR(100) NOT NULL,
-    price    DECIMAL(10,2) NOT NULL,
-    stock    INT NOT NULL DEFAULT 0,
-    category VARCHAR(50) NULL
-);
-
--- Tabel pesanan
-CREATE TABLE orders (
-    id          INT AUTO_INCREMENT PRIMARY KEY,
-    product_id  INT NOT NULL,
-    quantity    INT NOT NULL,
-    total_price DECIMAL(10,2) NOT NULL,
-    status      ENUM('pending','processing','completed','cancelled') NOT NULL DEFAULT 'pending',
-    created_at  TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    CONSTRAINT fk_order_product FOREIGN KEY (product_id) REFERENCES products(id)
-);
-```
 
 > File lengkap tersedia di: `setup.sql` (ada di folder jawaban sebagai referensi)
 
@@ -120,24 +140,6 @@ Buat file `composer.json`:
 
 ![composer.json](images/p5_composer_json.png)
 
-```json
-{
-    "require-dev": {
-        "phpunit/phpunit": "^10"
-    },
-    "autoload": {
-        "psr-4": {
-            "App\\": "src/"
-        }
-    },
-    "autoload-dev": {
-        "psr-4": {
-            "Tests\\": "tests/"
-        }
-    }
-}
-```
-
 Jalankan:
 ```bash
 composer install
@@ -148,30 +150,6 @@ composer install
 Buat file `phpunit.xml`:
 
 ![phpunit.xml](images/p5_phpunit_xml.png)
-
-```xml
-<?xml version="1.0" encoding="UTF-8"?>
-<phpunit xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
-         xsi:noNamespaceSchemaLocation="vendor/phpunit/phpunit/phpunit.xsd"
-         bootstrap="vendor/autoload.php"
-         colors="true">
-
-    <testsuites>
-        <testsuite name="Database Tests">
-            <directory>tests</directory>
-        </testsuite>
-    </testsuites>
-
-    <php>
-        <env name="DB_HOST"   value="localhost"/>
-        <env name="DB_NAME"   value="tokokita_testing"/>
-        <env name="DB_USER"   value="root"/>
-        <env name="DB_PASS"   value=""/>
-        <env name="DB_PORT"   value="3306"/>
-    </php>
-
-</phpunit>
-```
 
 > Sesuaikan nilai `DB_USER` dan `DB_PASS` dengan konfigurasi MySQL Anda.
 
@@ -194,9 +172,50 @@ Gunakan `PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION` agar error database langsu
 
 ### `src/ProductRepository.php`
 
+Gambar berikut menunjukkan **skeleton** class dan contoh dua method pertama:
+
 ![ProductRepository.php](images/p5_product_repository.png)
 
-Class ini mengelola operasi database untuk tabel `products`.
+Perhatikan bahwa gambar hanya menampilkan `save()` dan `findById()`. Anda perlu menambahkan method-method lainnya.
+
+**Contoh implementasi method yang tersisa:**
+
+```php
+public function findAll(): array
+{
+    $stmt = $this->db->query('SELECT * FROM products');
+    return $stmt->fetchAll(PDO::FETCH_ASSOC);
+}
+
+public function findByCategory(string $category): array
+{
+    $stmt = $this->db->prepare(
+        'SELECT * FROM products WHERE category = :category'
+    );
+    $stmt->execute([':category' => $category]);
+    return $stmt->fetchAll(PDO::FETCH_ASSOC);
+}
+
+public function updateStock(int $id, int $stock): bool
+{
+    $stmt = $this->db->prepare(
+        'UPDATE products SET stock = :stock WHERE id = :id'
+    );
+    $stmt->execute([':stock' => $stock, ':id' => $id]);
+    return $stmt->rowCount() > 0;
+}
+
+public function delete(int $id): bool
+{
+    $stmt = $this->db->prepare('DELETE FROM products WHERE id = :id');
+    $stmt->execute([':id' => $id]);
+    return $stmt->rowCount() > 0;
+}
+```
+
+---
+
+**Tabel method yang harus ada di `ProductRepository`:**
 
 | Method | Parameter | Return | Keterangan |
 |--------|-----------|--------|------------|
@@ -213,6 +232,44 @@ Class ini mengelola operasi database untuk tabel `products`.
 ### `src/OrderRepository.php`
 
 Class ini mengelola operasi database untuk tabel `orders`.
+
+**Contoh implementasi `create()` dan `findById()`:**
+
+```php
+<?php
+namespace App;
+
+class OrderRepository
+{
+    public function __construct(private \PDO $db) {}
+
+    public function create(array $data): int
+    {
+        $stmt = $this->db->prepare(
+            'INSERT INTO orders (product_id, quantity, total_price) '
+            . 'VALUES (:product_id, :quantity, :total_price)'
+        );
+        $stmt->execute([
+            ':product_id'  => $data['product_id'],
+            ':quantity'    => $data['quantity'],
+            ':total_price' => $data['total_price'],
+        ]);
+        return (int) $this->db->lastInsertId();
+    }
+
+    public function findById(int $id): ?array
+    {
+        $stmt = $this->db->prepare('SELECT * FROM orders WHERE id = :id');
+        $stmt->execute([':id' => $id]);
+        $row = $stmt->fetch(\PDO::FETCH_ASSOC);
+        return $row !== false ? $row : null;
+    }
+
+    // Lengkapi: findByStatus(), updateStatus(), countByProduct()
+}
+```
+
+**Tabel method yang harus ada di `OrderRepository`:**
 
 | Method | Parameter | Return | Keterangan |
 |--------|-----------|--------|------------|
@@ -249,9 +306,89 @@ Verifikasi: jalankan `vendor/bin/phpunit --list-tests` — harus tidak ada error
 
 ### Soal 2 — Testing ProductRepository (40 poin)
 
-Implementasikan `src/ProductRepository.php`, lalu buat `tests/ProductRepositoryTest.php` yang berisi minimal **6 test case** berikut:
+Implementasikan `src/ProductRepository.php`, lalu buat `tests/ProductRepositoryTest.php` yang berisi minimal **6 test case** berikut.
+
+Gambar di bawah menunjukkan struktur class dan **test case pertama** sebagai contoh:
 
 ![ProductRepositoryTest.php](images/p5_product_test.png)
+
+**Lengkapi 5 test case berikutnya:**
+
+```php
+public function test_dapat_mencari_produk_berdasarkan_id(): void
+{
+    // Arrange — simpan dulu satu produk
+    $id = $this->repo->save([
+        'name' => 'Mouse Logitech', 'price' => 250000,
+        'stock' => 5, 'category' => 'Komputer',
+    ]);
+
+    // Act
+    $product = $this->repo->findById($id);
+
+    // Assert
+    $this->assertNotNull($product);
+    $this->assertEquals('Mouse Logitech', $product['name']);
+    $this->assertEquals(250000, $product['price']);
+}
+
+public function test_findById_mengembalikan_null_jika_tidak_ada(): void
+{
+    $product = $this->repo->findById(99999); // id yang pasti tidak ada
+    $this->assertNull($product);
+}
+
+public function test_dapat_memfilter_produk_berdasarkan_kategori(): void
+{
+    // Arrange — simpan 2 produk berbeda kategori
+    $this->repo->save([
+        'name' => 'Laptop Asus', 'price' => 8500000,
+        'stock' => 3, 'category' => 'Elektronik',
+    ]);
+    $this->repo->save([
+        'name' => 'Buku PHP', 'price' => 120000,
+        'stock' => 10, 'category' => 'Buku',
+    ]);
+
+    // Act
+    $hasil = $this->repo->findByCategory('Elektronik');
+
+    // Assert
+    $this->assertCount(1, $hasil);
+    $this->assertEquals('Laptop Asus', $hasil[0]['name']);
+}
+
+public function test_dapat_mengupdate_stok_produk(): void
+{
+    $id = $this->repo->save([
+        'name' => 'Keyboard', 'price' => 300000,
+        'stock' => 5, 'category' => 'Komputer',
+    ]);
+
+    $berhasil = $this->repo->updateStock($id, 50);
+
+    $this->assertTrue($berhasil);
+    $product = $this->repo->findById($id);
+    $this->assertEquals(50, $product['stock']);
+}
+
+public function test_dapat_menghapus_produk(): void
+{
+    $id = $this->repo->save([
+        'name' => 'Monitor', 'price' => 1500000,
+        'stock' => 2, 'category' => 'Elektronik',
+    ]);
+
+    $berhasil = $this->repo->delete($id);
+
+    $this->assertTrue($berhasil);
+    $this->assertNull($this->repo->findById($id));
+}
+```
+
+---
+
+**Tabel ringkasan 6 test case Soal 2:**
 
 | No | Nama Test | Yang Diuji |
 |----|-----------|------------|
@@ -266,9 +403,98 @@ Implementasikan `src/ProductRepository.php`, lalu buat `tests/ProductRepositoryT
 
 ### Soal 3 — Testing OrderRepository (30 poin)
 
-Implementasikan `src/OrderRepository.php`, lalu buat `tests/OrderRepositoryTest.php` yang berisi minimal **4 test case** berikut:
+Implementasikan `src/OrderRepository.php`, lalu buat `tests/OrderRepositoryTest.php` yang berisi minimal **4 test case** berikut.
+
+Gambar di bawah menunjukkan test untuk **kasus error** (test ke-4) sebagai referensi:
 
 ![OrderRepositoryTest.php](images/p5_order_test.png)
+
+**Lengkapi 3 test case lainnya:**
+
+```php
+<?php
+namespace Tests;
+
+use App\OrderRepository;
+use App\ProductRepository;
+use PDOException;
+
+class OrderRepositoryTest extends BaseTestCase
+{
+    private OrderRepository $orderRepo;
+    private int $productId; // produk dummy untuk relasi
+
+    protected function setUp(): void
+    {
+        parent::setUp();
+        $this->orderRepo = new OrderRepository($this->db);
+
+        // Buat produk dummy agar foreign key order valid
+        $productRepo = new ProductRepository($this->db);
+        $this->productId = $productRepo->save([
+            'name'     => 'Produk Test',
+            'price'    => 100000,
+            'stock'    => 50,
+            'category' => 'Test',
+        ]);
+    }
+
+    public function test_dapat_membuat_pesanan_baru(): void
+    {
+        $id = $this->orderRepo->create([
+            'product_id'  => $this->productId,
+            'quantity'    => 2,
+            'total_price' => 200000,
+        ]);
+
+        $this->assertGreaterThan(0, $id);
+    }
+
+    public function test_dapat_mencari_pesanan_berdasarkan_status(): void
+    {
+        // Arrange — buat 2 pesanan, satu pending satu completed
+        $this->orderRepo->create([
+            'product_id'  => $this->productId,
+            'quantity'    => 1,
+            'total_price' => 100000,
+        ]);
+        $idCompleted = $this->orderRepo->create([
+            'product_id'  => $this->productId,
+            'quantity'    => 3,
+            'total_price' => 300000,
+        ]);
+        $this->orderRepo->updateStatus($idCompleted, 'completed');
+
+        // Act
+        $pendingOrders = $this->orderRepo->findByStatus('pending');
+
+        // Assert — hanya 1 yang statusnya pending
+        $this->assertCount(1, $pendingOrders);
+        $this->assertEquals('pending', $pendingOrders[0]['status']);
+    }
+
+    public function test_dapat_mengupdate_status_pesanan(): void
+    {
+        $id = $this->orderRepo->create([
+            'product_id'  => $this->productId,
+            'quantity'    => 1,
+            'total_price' => 100000,
+        ]);
+
+        $berhasil = $this->orderRepo->updateStatus($id, 'processing');
+
+        $this->assertTrue($berhasil);
+        $order = $this->orderRepo->findById($id);
+        $this->assertEquals('processing', $order['status']);
+    }
+
+    // Test ke-4: gunakan contoh dari gambar p5_order_test.png di atas
+}
+```
+
+---
+
+**Tabel ringkasan 4 test case Soal 3:**
 
 | No | Nama Test | Yang Diuji |
 |----|-----------|------------|
@@ -307,22 +533,6 @@ vendor/bin/phpunit tests/ProductRepositoryTest.php
 ### Contoh Output yang Diharapkan
 
 ![Expected Test Output](images/p5_test_output.png)
-
-```
-Database Tests
- ✔ dapat menyimpan produk baru
- ✔ dapat mencari produk berdasarkan id
- ✔ findById mengembalikan null jika tidak ada
- ✔ dapat memfilter produk berdasarkan kategori
- ✔ dapat mengupdate stok produk
- ✔ dapat menghapus produk
- ✔ dapat membuat pesanan baru
- ✔ dapat mencari pesanan berdasarkan status
- ✔ dapat mengupdate status pesanan
- ✔ pesanan gagal jika product id tidak ada
-
-OK (10 tests, 15 assertions)
-```
 
 ---
 
