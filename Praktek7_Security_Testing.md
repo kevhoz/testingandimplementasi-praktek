@@ -46,11 +46,11 @@ Praktek ini fokus pada **DAST** — menggunakan ZAP dan Postman untuk menyerang 
 
 ### 2. Setup Database
 
-Buka phpMyAdmin di `http://localhost/phpmyadmin`, lalu jalankan SQL berikut. **Ketik dari gambar** — jangan copy-paste agar terbiasa dengan sintaksnya.
+Buka phpMyAdmin di `http://localhost/phpmyadmin`, lalu **ketik SQL berikut dari gambar** ke tab SQL — jangan copy-paste agar terbiasa dengan sintaksnya:
 
 ![Database Setup](images/p7_setup_db.png)
 
-Verifikasi: di phpMyAdmin harus muncul database `tokokita_security` dengan tabel `products` berisi 3 baris.
+Verifikasi: harus muncul database `tokokita_security` dengan tabel `products` berisi 3 baris data.
 
 ### 3. Struktur Folder
 
@@ -69,20 +69,9 @@ C:/xampp/htdocs/praktek7/
 
 ### 4. File `api/config.php`
 
-Buat file `config.php` dengan isi berikut (ketik dari gambar):
+**Ketik dari gambar:**
 
-```php
-<?php
-declare(strict_types=1);
-
-$db_host = 'localhost';
-$db_name = 'tokokita_security';
-$db_user = 'root';
-$db_pass = '';
-
-// Token sederhana untuk demo authorization (Demo 4)
-const API_TOKEN = 'rahasia-praktek7';
-```
+![config.php](images/p7_config_php.png)
 
 > **Catatan keamanan:** API_TOKEN di file kode hanya untuk pembelajaran. Di produksi, simpan di environment variable, bukan di repo.
 
@@ -94,25 +83,15 @@ const API_TOKEN = 'rahasia-praktek7';
 
 ### Langkah 1.1 — Tulis versi rentan
 
-Buat file `api/index.php`. **Ketik kode dari gambar** ke editor masing-masing:
+Buat file `api/index.php`. **Ketik kode dari gambar:**
 
 ![Demo 1 — Versi Rentan](images/p7_demo1_insecure.png)
 
 ### Langkah 1.2 — Coba serang dengan Postman
 
-Pastikan Apache + MySQL berjalan, lalu kirim 2 request berikut dari Postman:
+Pastikan Apache + MySQL berjalan, lalu kirim 2 request berikut **dari gambar** ke Postman:
 
-**Request A — normal:**
-```
-GET http://localhost/praktek7/api/index.php?id=1
-```
-Hasil yang diharapkan: 1 baris data Laptop Asus.
-
-**Request B — SQL Injection:**
-```
-GET http://localhost/praktek7/api/index.php?id=1 OR 1=1
-```
-Hasil aktual: **SEMUA baris** dikembalikan! Payload `OR 1=1` menjadi bagian dari query: `SELECT * FROM products WHERE id = 1 OR 1=1` → kondisi selalu benar.
+![Demo 1 — Serangan](images/p7_demo1_attack.png)
 
 Catat screenshot dari kedua response.
 
@@ -128,7 +107,7 @@ Ganti isi `api/index.php` dengan versi aman berikut. **Ketik dari gambar:**
 
 ### Langkah 1.4 — Verifikasi serangan gagal
 
-Kirim ulang Request B (`?id=1 OR 1=1`). Sekarang harus dapat **HTTP 400 — Invalid id**.
+Kirim ulang Request B dari Langkah 1.2 (`?id=1 OR 1=1`). Sekarang harus dapat **HTTP 400 — Invalid id**.
 
 ---
 
@@ -144,25 +123,11 @@ Tambahkan blok `elseif POST` di `api/index.php`. **Ketik dari gambar:**
 
 ### Langkah 2.2 — Coba serang
 
-Di Postman:
-```
-POST http://localhost/praktek7/api/index.php
-Content-Type: application/json
+**Ketik dari gambar** ke Postman, kirim kedua request:
 
-{
-  "name": "'; DROP TABLE products; --",
-  "price": 0,
-  "stock": 0
-}
-```
+![Demo 2 — Serangan](images/p7_demo2_attack.png)
 
-Periksa di phpMyAdmin: jika DROP berhasil tabel `products` hilang. Jika tidak (PDO single-statement), payload tetap tersimpan sebagai *string* di kolom name — masih bukti **input tidak divalidasi**.
-
-Coba juga payload XSS:
-```json
-{ "name": "<script>alert('XSS')</script>", "price": 1000, "stock": 1 }
-```
-Tag script tersimpan apa adanya di database.
+Periksa di phpMyAdmin: lihat apakah payload tersimpan / tabel hilang / data masuk.
 
 ### Langkah 2.3 — Tulis versi aman
 
@@ -193,13 +158,11 @@ Bagian setup PDO dan header pada versi rentan terlihat seperti ini:
 
 ### Langkah 3.2 — Coba picu error
 
-Kirim POST dengan field yang tidak ada:
-```
-POST http://localhost/praktek7/api/index.php
-{ "name": "test", "price": "bukan-angka", "stock": "bukan-angka" }
-```
+**Ketik dari gambar** request berikut, lalu lihat response body + header di Postman:
 
-Karena di Demo 1–2 versi rentan, PHP error langsung ditampilkan termasuk **path file**, **versi MySQL**, atau bahkan struktur tabel — informasi yang **memudahkan penyerang**.
+![Demo 3 — Serangan](images/p7_demo3_attack.png)
+
+Informasi seperti **path file**, **versi MySQL**, atau **struktur tabel** memudahkan penyerang melakukan reconnaissance.
 
 ### Langkah 3.3 — Tulis versi aman
 
@@ -229,15 +192,13 @@ Tambahkan blok `elseif DELETE` di `api/index.php`. **Ketik dari gambar:**
 
 ![Demo 4 — Versi Rentan](images/p7_demo4_insecure.png)
 
-### Langkah 4.2 — Coba serang
+### Langkah 4.2 — Coba serang & rencana verifikasi
 
-Di Postman:
-```
-DELETE http://localhost/praktek7/api/index.php?id=2
-```
-**Tanpa header Authorization.** Produk dengan id 2 langsung terhapus.
+**Ketik dari gambar** dan jalankan kedua skenario di Postman:
 
-Cek di phpMyAdmin — Mouse Logitech sudah hilang. **Ini insiden keamanan**: siapa pun yang tahu URL bisa menghapus data.
+![Demo 4 — Serangan & Verifikasi](images/p7_demo4_attack.png)
+
+Restore data yang terhapus lewat phpMyAdmin sebelum lanjut.
 
 ### Langkah 4.3 — Tulis versi aman
 
@@ -247,13 +208,7 @@ Ganti blok DELETE dengan versi yang memeriksa Bearer token. **Ketik dari gambar:
 
 ### Langkah 4.4 — Verifikasi
 
-Tiga test di Postman:
-
-1. DELETE **tanpa** header → **401 Unauthorized**
-2. DELETE dengan header `Authorization: Bearer token-salah` → **401 Unauthorized**
-3. DELETE dengan header `Authorization: Bearer rahasia-praktek7` → **200 OK**
-
-Restore data yang terhapus lewat phpMyAdmin sebelum lanjut.
+Jalankan 3 test verifikasi yang ada di gambar Demo 4 Serangan (Test 1, 2, 3). Semua harus sesuai status yang diharapkan: 401, 401, 200.
 
 ---
 
@@ -265,7 +220,7 @@ Diberikan kode endpoint **search** untuk produk berikut. Kode ini mengandung **m
 
 ### Tugas 1.A — Identifikasi (20 poin)
 
-Buat tabel berikut di file `JAWABAN_SOAL1.md`. Daftarkan **minimal 4 kerentanan**:
+Buat file `JAWABAN_SOAL1.md`. Daftarkan **minimal 4 kerentanan** dalam tabel:
 
 | # | Nama Kerentanan | OWASP | Lokasi (baris/blok) | Contoh Payload | Dampak |
 |---|---|---|---|---|---|
@@ -288,6 +243,7 @@ Tulis ulang seluruh kode endpoint search menjadi **versi aman**. Simpan sebagai 
 - Prepared statement untuk **semua** query
 - Error handling yang tidak membocorkan detail
 - Pagination dengan batas maksimum
+- Output escaping (HTML) untuk mencegah XSS
 
 Verifikasi: ulangi 2 serangan dari Tugas 1.B terhadap `search_secure.php` — semua harus diblokir dengan response yang tepat (400/422/dst).
 
@@ -330,7 +286,7 @@ Untuk **2 alert HIGH/MEDIUM** yang dipilih:
 
 Tulis hasil di `JAWABAN_SOAL2.md` dengan format:
 
-```markdown
+```
 ## Alert 1: <nama alert>
 - Risk: ...
 - Kode bermasalah: <snippet>
@@ -371,7 +327,7 @@ praktek7_<NIM>_<Nama>/
 | Demo 1–4 selesai (file `api/index.php` aman) | — | Wajib (gerbang) — tidak dinilai tapi prasyarat soal |
 | **Soal 1.A** Identifikasi 4+ kerentanan | 20 |  Kategori OWASP benar, lokasi tepat, payload masuk akal |
 | **Soal 1.B** Bukti eksploitasi 2 kerentanan | 10 | Screenshot Postman + caption jelas |
-| **Soal 1.C** Implementasi `search_secure.php` | 20 | Prepared statement, validasi, pagination, error generik |
+| **Soal 1.C** Implementasi `search_secure.php` | 20 | Prepared statement, validasi, pagination, error generik, output escaping |
 | **Soal 2.A** Konfigurasi & Spider ZAP | 10 | Sites tree menunjukkan endpoint praktek7 |
 | **Soal 2.B** Dokumentasi 2 alert HIGH/MEDIUM | 15 | Tabel lengkap, deskripsi tepat |
 | **Soal 2.C** Perbaikan & verifikasi scan ulang | 25 | Alert berkurang/turun setelah perbaikan, screenshot lengkap |
