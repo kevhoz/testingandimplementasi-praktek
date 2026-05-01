@@ -4,60 +4,33 @@
 
 Setelah menyelesaikan praktek ini, mahasiswa mampu:
 - Memahami konsep OWASP Top 10 dan ancaman keamanan umum pada aplikasi web
-- Mengidentifikasi dan mengeksploitasi kerentanan SQL Injection pada aplikasi PHP
-- Memahami konsep Broken Authentication dan pentingnya validasi input
-- Menerapkan perbaikan keamanan menggunakan PDO prepared statements dan input validation
-- Menggunakan tools security testing: OWASP ZAP (DAST) dan Postman (manual testing)
+- Mengeksploitasi **SQL Injection** pada API PHP yang rentan
+- Memahami pentingnya **input validation**, **prepared statements**, **error handling**, dan **authorization**
+- Menggunakan **OWASP ZAP** (DAST) untuk *automated scanning* dan **Postman** untuk pengujian manual
+- Menulis kode PHP yang aman dengan PDO prepared statements
 
 ---
 
-## Latar Belakang
+## Latar Belakang Singkat
 
-### Mengapa Security Testing Penting?
+### OWASP Top 10 (yang relevan untuk praktek ini)
 
-Aplikasi yang **berfungsi dengan benar** belum tentu **aman**. Fungsional testing memastikan fitur bekerja sesuai spesifikasi, sedangkan **security testing** memastikan aplikasi tidak dapat disalahgunakan oleh penyerang.
+| Kode | Nama | Contoh |
+|------|------|--------|
+| A01 | Broken Access Control | DELETE tanpa autentikasi |
+| A03 | Injection | SQL Injection: `1 OR 1=1` |
+| A04 | Insecure Design | Tidak ada rate limit / batas input |
+| A05 | Security Misconfiguration | Error stack trace bocor ke client |
 
-Statistik menunjukkan bahwa:
-- Lebih dari **60%** pelanggaran data disebabkan oleh kerentanan yang sudah diketahui
-- SQL Injection masuk dalam daftar OWASP Top 10 selama lebih dari **15 tahun berturut-turut**
-- Biaya memperbaiki kerentanan setelah deployment **100x lebih mahal** dibanding saat development
+### SAST vs DAST
 
-### OWASP Top 10
+| | **SAST** | **DAST** |
+|---|---|---|
+| Cara | Analisis source code | Uji aplikasi yang berjalan |
+| Tool PHP | PHPStan, Psalm | **OWASP ZAP**, Burp Suite |
+| Kapan | Saat menulis kode | Setelah deploy ke staging |
 
-OWASP (Open Web Application Security Project) menerbitkan daftar 10 risiko keamanan aplikasi web yang paling kritis:
-
-| Peringkat | Nama | Contoh Serangan |
-|-----------|------|-----------------|
-| A01 | Broken Access Control | Mengakses data user lain dengan mengganti ID di URL |
-| A02 | Cryptographic Failures | Password disimpan sebagai plain text di database |
-| A03 | Injection | SQL Injection: `' OR 1=1 --` pada form login |
-| A04 | Insecure Design | Tidak ada rate limiting pada endpoint login |
-| A05 | Security Misconfiguration | Error message menampilkan stack trace ke user |
-| A06 | Vulnerable Components | Menggunakan library dengan CVE yang diketahui |
-| A07 | Authentication Failures | Session token yang mudah ditebak |
-| A08 | Data Integrity Failures | Deserialisasi data yang tidak divalidasi |
-| A09 | Logging Failures | Tidak ada log untuk aktivitas login gagal |
-| A10 | SSRF | Aplikasi mengambil URL arbitrary dari input user |
-
-### Jenis Security Testing
-
-**SAST (Static Application Security Testing)**
-- Menganalisis kode sumber tanpa menjalankan program
-- Menemukan kerentanan di level kode
-- Contoh tools: SonarQube, PHPStan, Psalm
-
-**DAST (Dynamic Application Security Testing)**
-- Menguji aplikasi yang sedang berjalan
-- Mensimulasikan serangan nyata dari luar
-- Contoh tools: **OWASP ZAP**, Burp Suite
-
-### Tools yang Digunakan
-
-| Tool | Jenis | Fungsi |
-|------|-------|--------|
-| OWASP ZAP | DAST | Automated vulnerability scanning |
-| Postman | Manual DAST | Mengirim request berbahaya secara manual |
-| PHPUnit | Unit Testing | Memverifikasi perbaikan keamanan |
+Praktek ini fokus pada **DAST** — menggunakan ZAP dan Postman untuk menyerang API yang sedang berjalan.
 
 ---
 
@@ -65,434 +38,356 @@ OWASP (Open Web Application Security Project) menerbitkan daftar 10 risiko keama
 
 ### 1. Prasyarat
 
-Pastikan sudah terinstall:
-- PHP >= 8.0
+- PHP >= 8.0, MySQL (XAMPP / Laragon)
 - Composer
-- MySQL Server (XAMPP / Laragon)
-- Postman
-- Java 11+ (diperlukan oleh OWASP ZAP)
-- OWASP ZAP (diinstall di langkah berikutnya)
+- **Postman** — https://www.postman.com/downloads/
+- **OWASP ZAP 2.15+** — https://www.zaproxy.org/download/
+- Java 11+ (untuk ZAP) — cek dengan `java -version`
 
-### 2. Install OWASP ZAP
+### 2. Setup Database
 
-1. Buka browser dan kunjungi: **https://www.zaproxy.org/download/**
-2. Unduh versi **ZAP 2.15.x** sesuai sistem operasi (Windows Installer)
-3. Jalankan installer dan ikuti langkah instalasi default
-4. Buka ZAP → pilih **"No, I do not want to persist this session"** saat pertama kali dijalankan
-5. Verifikasi ZAP berjalan dengan melihat jendela utama ZAP terbuka
+Buka phpMyAdmin di `http://localhost/phpmyadmin`, lalu jalankan SQL berikut. **Ketik dari gambar** — jangan copy-paste agar terbiasa dengan sintaksnya.
 
-> **Catatan:** ZAP memerlukan Java. Jika muncul error, pastikan Java sudah terinstall dengan menjalankan `java -version` di terminal.
+![Database Setup](images/p7_setup_db.png)
 
-### 3. Setup API yang Rentan
+Verifikasi: di phpMyAdmin harus muncul database `tokokita_security` dengan tabel `products` berisi 3 baris.
 
-Kita akan membuat **API yang sengaja mengandung kerentanan** untuk tujuan pembelajaran. API ini **TIDAK BOLEH** digunakan di lingkungan produksi.
+### 3. Struktur Folder
 
-Salin file dari `jawaban/praktek7_security_testing/api/` ke folder XAMPP:
+Buat folder berikut **di dalam `C:/xampp/htdocs/`** (atau `laragon/www/`):
+
 ```
 C:/xampp/htdocs/praktek7/
-├── config.php
-├── index.php          (← API rentan, untuk diuji)
-└── index_fixed.php    (← API yang sudah diperbaiki)
-```
-
-Buat database dengan menjalankan script SQL berikut di phpMyAdmin:
-
-```sql
-CREATE DATABASE IF NOT EXISTS tokokita_security CHARACTER SET utf8mb4;
-
-USE tokokita_security;
-
-CREATE TABLE products (
-    id       INT AUTO_INCREMENT PRIMARY KEY,
-    name     VARCHAR(100) NOT NULL,
-    price    DECIMAL(10,2) NOT NULL,
-    stock    INT NOT NULL DEFAULT 0,
-    category VARCHAR(50) NULL
-);
-
-INSERT INTO products (name, price, stock, category) VALUES
-    ('Laptop Asus', 8500000, 10, 'Elektronik'),
-    ('Mouse Logitech', 250000, 50, 'Elektronik'),
-    ('Buku PHP', 150000, 30, 'Buku');
-```
-
-### 4. Struktur Folder
-
-Buat folder project baru dengan struktur berikut:
-
-```
-praktek7_security_testing/
 ├── api/
-│   ├── config.php              (konfigurasi database)
-│   ├── index.php               (API rentan — untuk diuji)
-│   └── index_fixed.php         (API yang sudah diperbaiki)
+│   ├── config.php
+│   └── index.php
 ├── tests/
-│   └── security_test.php       (PHPUnit security tests)
+│   └── security_test.php
 ├── composer.json
-├── phpunit.xml
-└── reports/                    (simpan laporan ZAP di sini)
+└── phpunit.xml
 ```
 
----
+### 4. File `api/config.php`
 
-## Membuat API yang Rentan (Sengaja untuk Pembelajaran)
-
-> **PERINGATAN:** Kode berikut sengaja dibuat rentan untuk keperluan pendidikan. Jangan pernah menggunakan pola ini di aplikasi nyata.
-
-Berikut adalah contoh API PHP yang mengandung kerentanan SQL Injection — query dibangun dengan **string concatenation** langsung dari input user:
-
-![Vulnerable Code](images/p7_vulnerable_code.png)
+Buat file `config.php` dengan isi berikut (ketik dari gambar):
 
 ```php
 <?php
-// api/index.php — VERSI RENTAN (untuk keperluan belajar saja!)
+declare(strict_types=1);
 
-require_once 'config.php';
+$db_host = 'localhost';
+$db_name = 'tokokita_security';
+$db_user = 'root';
+$db_pass = '';
 
-$pdo = new PDO("mysql:host=$db_host;dbname=$db_name", $db_user, $db_pass);
-// MASALAH: error mode default — error database tidak dilempar sebagai exception
-
-$method = $_SERVER['REQUEST_METHOD'];
-$id     = $_GET['id'] ?? null;
-
-if ($method === 'GET' && $id !== null) {
-    // KERENTANAN: string concatenation langsung dari $_GET['id']
-    $sql  = "SELECT * FROM products WHERE id = " . $id;
-    $stmt = $pdo->query($sql);
-    echo json_encode($stmt->fetchAll(PDO::FETCH_ASSOC));
-
-} elseif ($method === 'POST') {
-    $data = json_decode(file_get_contents('php://input'), true);
-    $name = $data['name'];  // KERENTANAN: tidak ada validasi input
-
-    // KERENTANAN: string concatenation pada INSERT
-    $sql = "INSERT INTO products (name, price, stock)
-            VALUES ('" . $name . "', " . $data['price'] . ", " . $data['stock'] . ")";
-    $pdo->exec($sql);
-    echo json_encode(['message' => 'created']);
-
-} elseif ($method === 'DELETE' && $id !== null) {
-    // KERENTANAN: tidak ada autentikasi — siapapun bisa hapus data!
-    $sql = "DELETE FROM products WHERE id = " . $id;
-    $pdo->exec($sql);
-    echo json_encode(['message' => 'deleted']);
-}
+// Token sederhana untuk demo authorization (Demo 4)
+const API_TOKEN = 'rahasia-praktek7';
 ```
 
-**Identifikasi Kerentanan:**
-1. **SQL Injection (A03)** — parameter `$id` dan `$name` langsung digabungkan ke query
-2. **Insecure Design (A04)** — tidak ada autentikasi untuk operasi DELETE
-3. **Security Misconfiguration (A05)** — error database tidak ditangani, bisa expose informasi sensitif
+> **Catatan keamanan:** API_TOKEN di file kode hanya untuk pembelajaran. Di produksi, simpan di environment variable, bukan di repo.
 
 ---
 
-## Soal
+## 🧪 Demo 1 — SQL Injection pada Parameter GET
 
-### Soal 1 — Analisis Kode Rentan (20 poin)
+**Skenario:** Endpoint `GET ?id=X` membangun query dengan **string concatenation** sehingga input user menjadi bagian dari SQL.
 
-Perhatikan kode API rentan di bawah ini (juga tersedia di `jawaban/praktek7_security_testing/api/vulnerable_index.php`):
+### Langkah 1.1 — Tulis versi rentan
 
-![Vulnerable Code](images/p7_vulnerable_code.png)
+Buat file `api/index.php`. **Ketik kode dari gambar** ke editor masing-masing:
 
-```php
-// Fragmen kode yang perlu dianalisis:
+![Demo 1 — Versi Rentan](images/p7_demo1_insecure.png)
 
-// Fragmen 1 — endpoint GET
-$id  = $_GET['id'] ?? null;
-$sql = "SELECT * FROM products WHERE id = " . $id;
-$stmt = $pdo->query($sql);
+### Langkah 1.2 — Coba serang dengan Postman
 
-// Fragmen 2 — endpoint POST
-$data = json_decode(file_get_contents('php://input'), true);
-$name = $data['name'];
-$sql  = "INSERT INTO products (name, price, stock)
-         VALUES ('" . $name . "', " . $data['price'] . ", " . $data['stock'] . ")";
-$pdo->exec($sql);
+Pastikan Apache + MySQL berjalan, lalu kirim 2 request berikut dari Postman:
 
-// Fragmen 3 — endpoint DELETE (tanpa autentikasi)
-$id  = $_GET['id'] ?? null;
-$sql = "DELETE FROM products WHERE id = " . $id;
-$pdo->exec($sql);
-```
-
-**Tugas:**
-
-a) Identifikasi **minimal 3 kerentanan** yang terdapat dalam kode di atas. Untuk setiap kerentanan, sebutkan:
-   - Nama kerentanan dan kategori OWASP Top 10 yang relevan
-   - Lokasi dalam kode (baris/fragmen)
-   - Nilai input berbahaya yang dapat mengeksploitasi kerentanan tersebut
-
-b) Jelaskan **dampak** (impact) dari setiap kerentanan jika berhasil dieksploitasi oleh penyerang.
-
-c) Tulis jawaban dalam format tabel:
-
-| # | Kerentanan | OWASP | Lokasi | Contoh Payload | Dampak |
-|---|-----------|-------|--------|----------------|--------|
-| 1 | ... | A0x | Fragmen X | `...` | ... |
-| 2 | ... | ... | ... | ... | ... |
-| 3 | ... | ... | ... | ... | ... |
-
----
-
-### Soal 2 — SQL Injection Testing dengan Postman (30 poin)
-
-Gunakan Postman untuk menguji kerentanan SQL Injection pada API rentan yang sudah di-setup di XAMPP.
-
-![SQL Injection Test](images/p7_sql_injection.png)
-
-#### 2a. Uji GET dengan SQL Injection (10 poin)
-
-Kirim request berikut dan catat hasilnya:
-
-**Request 1 — Normal:**
+**Request A — normal:**
 ```
 GET http://localhost/praktek7/api/index.php?id=1
 ```
+Hasil yang diharapkan: 1 baris data Laptop Asus.
 
-**Request 2 — SQL Injection (UNION-based):**
+**Request B — SQL Injection:**
 ```
 GET http://localhost/praktek7/api/index.php?id=1 OR 1=1
 ```
+Hasil aktual: **SEMUA baris** dikembalikan! Payload `OR 1=1` menjadi bagian dari query: `SELECT * FROM products WHERE id = 1 OR 1=1` → kondisi selalu benar.
 
-**Request 3 — SQL Injection (comment):**
+Catat screenshot dari kedua response.
+
+### Langkah 1.3 — Tulis versi aman
+
+Ganti isi `api/index.php` dengan versi aman berikut. **Ketik dari gambar:**
+
+![Demo 1 — Versi Aman](images/p7_demo1_secure.png)
+
+**Dua perbaikan kunci:**
+1. `filter_input` dengan `FILTER_VALIDATE_INT` → input non-integer ditolak.
+2. `prepare(...)` + `execute([$id])` → `$id` dikirim sebagai *parameter*, bukan digabung ke string SQL.
+
+### Langkah 1.4 — Verifikasi serangan gagal
+
+Kirim ulang Request B (`?id=1 OR 1=1`). Sekarang harus dapat **HTTP 400 — Invalid id**.
+
+---
+
+## 🧪 Demo 2 — SQL Injection pada Body POST
+
+**Skenario:** Endpoint POST membangun INSERT dengan string concatenation pada field `name`.
+
+### Langkah 2.1 — Tambah versi rentan untuk POST
+
+Tambahkan blok `elseif POST` di `api/index.php`. **Ketik dari gambar:**
+
+![Demo 2 — Versi Rentan](images/p7_demo2_insecure.png)
+
+### Langkah 2.2 — Coba serang
+
+Di Postman:
 ```
-GET http://localhost/praktek7/api/index.php?id=1; DROP TABLE products; --
-```
-
-Dokumentasikan:
-- Response body dari setiap request
-- Jumlah data yang dikembalikan (normal vs injection)
-- Apakah request berbahaya berhasil atau gagal? Mengapa?
-
-#### 2b. Uji POST dengan SQL Injection (10 poin)
-
-Kirim request berikut:
-
-**Request 1 — Normal:**
-```json
 POST http://localhost/praktek7/api/index.php
 Content-Type: application/json
 
 {
-    "name": "Produk Normal",
-    "price": 50000,
-    "stock": 10
+  "name": "'; DROP TABLE products; --",
+  "price": 0,
+  "stock": 0
 }
 ```
 
-**Request 2 — SQL Injection pada field name:**
+Periksa di phpMyAdmin: jika DROP berhasil tabel `products` hilang. Jika tidak (PDO single-statement), payload tetap tersimpan sebagai *string* di kolom name — masih bukti **input tidak divalidasi**.
+
+Coba juga payload XSS:
 ```json
+{ "name": "<script>alert('XSS')</script>", "price": 1000, "stock": 1 }
+```
+Tag script tersimpan apa adanya di database.
+
+### Langkah 2.3 — Tulis versi aman
+
+Ganti blok POST dengan versi berikut. **Ketik dari gambar:**
+
+![Demo 2 — Versi Aman](images/p7_demo2_secure.png)
+
+**Tiga perbaikan kunci:**
+1. **Validasi setiap field** sebelum dipakai (`is_string`, `mb_strlen`, `FILTER_VALIDATE_FLOAT`, `FILTER_VALIDATE_INT`).
+2. **Prepared statement** untuk INSERT — payload SQL hanya jadi *string literal*.
+3. **Status 422** untuk data tidak valid, bukan 500.
+
+### Langkah 2.4 — Verifikasi
+
+Ulangi serangan dari Langkah 2.2. Sekarang dapat **HTTP 422** dengan pesan validasi.
+
+---
+
+## 🧪 Demo 3 — Verbose Error & Missing Security Headers
+
+**Skenario:** Default PDO **tidak** melempar exception; error database bocor ke client. Selain itu API tidak mengirim header keamanan dasar.
+
+### Langkah 3.1 — Lihat versi rentan
+
+Bagian setup PDO dan header pada versi rentan terlihat seperti ini:
+
+![Demo 3 — Versi Rentan](images/p7_demo3_insecure.png)
+
+### Langkah 3.2 — Coba picu error
+
+Kirim POST dengan field yang tidak ada:
+```
 POST http://localhost/praktek7/api/index.php
-Content-Type: application/json
-
-{
-    "name": "'; DROP TABLE products; --",
-    "price": 50000,
-    "stock": 10
-}
+{ "name": "test", "price": "bukan-angka", "stock": "bukan-angka" }
 ```
 
-**Request 3 — XSS payload:**
-```json
-POST http://localhost/praktek7/api/index.php
-Content-Type: application/json
+Karena di Demo 1–2 versi rentan, PHP error langsung ditampilkan termasuk **path file**, **versi MySQL**, atau bahkan struktur tabel — informasi yang **memudahkan penyerang**.
 
-{
-    "name": "<script>alert('XSS')</script>",
-    "price": 50000,
-    "stock": 10
-}
-```
+### Langkah 3.3 — Tulis versi aman
 
-Dokumentasikan hasilnya dan periksa apakah data berbahaya berhasil disimpan di database (cek via phpMyAdmin).
+Ganti blok setup PDO dan tambahkan `try/catch` global. **Ketik dari gambar:**
 
-#### 2c. Implementasi Perbaikan (10 poin)
+![Demo 3 — Versi Aman](images/p7_demo3_secure.png)
 
-Perbaiki kerentanan pada endpoint GET dan POST menggunakan **PDO prepared statements**. Tunjukkan kode sebelum dan sesudah perbaikan:
+**Empat perbaikan kunci:**
+1. `PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION` → error PDO menjadi exception, bukan diam-diam.
+2. `PDO::ATTR_EMULATE_PREPARES => false` → gunakan native prepared statements MySQL.
+3. **Security headers**: `X-Content-Type-Options`, `X-Frame-Options`.
+4. `try/catch (PDOException)` → pesan generik `Internal server error` ke client, detail di-log dengan `error_log()`.
 
-```php
-// SEBELUM (rentan):
-$sql  = "SELECT * FROM products WHERE id = " . $id;
-$stmt = $pdo->query($sql);
+### Langkah 3.4 — Verifikasi
 
-// SESUDAH (aman — isi kode perbaikan di sini):
-// ...
-```
-
-Verifikasi perbaikan dengan mengulangi request berbahaya dari 2a dan 2b — request tersebut sekarang harus **tidak berhasil** atau menghasilkan response error yang tepat.
+Ulangi request bermasalah. Response sekarang **HTTP 500** dengan pesan generik. Detail error tetap tersedia di **server log** untuk dosen/developer.
 
 ---
 
-### Soal 3 — OWASP ZAP Automated Scan (30 poin)
+## 🧪 Demo 4 — Missing Authorization pada DELETE
 
-#### 3a. Konfigurasi ZAP sebagai Proxy (10 poin)
+**Skenario:** Endpoint DELETE bisa diakses siapa saja.
 
-1. Buka OWASP ZAP
-2. Pastikan ZAP mendengarkan di `localhost:8080` (default)
-3. Di Postman, tambahkan proxy:
-   - Settings → Proxy → Manual Proxy: `localhost:8080`
-4. Kirim beberapa request dari Postman ke API — pastikan request muncul di tab **History** ZAP
+### Langkah 4.1 — Tulis versi rentan untuk DELETE
 
-Dokumentasikan screenshot konfigurasi proxy dan daftar request yang terdeteksi ZAP.
+Tambahkan blok `elseif DELETE` di `api/index.php`. **Ketik dari gambar:**
 
-#### 3b. Jalankan Active Scan (10 poin)
+![Demo 4 — Versi Rentan](images/p7_demo4_insecure.png)
 
-![ZAP Scan Results](images/p7_zap_scan.png)
+### Langkah 4.2 — Coba serang
 
-1. Di ZAP, klik kanan pada `http://localhost` di panel **Sites**
-2. Pilih **Attack → Active Scan**
-3. Pastikan target URL adalah `http://localhost/praktek7/api/`
-4. Klik **Start Scan**
-5. Tunggu hingga scan selesai (biasanya 2-5 menit)
+Di Postman:
+```
+DELETE http://localhost/praktek7/api/index.php?id=2
+```
+**Tanpa header Authorization.** Produk dengan id 2 langsung terhapus.
 
-Setelah scan selesai, dokumentasikan hasil pada tabel berikut:
+Cek di phpMyAdmin — Mouse Logitech sudah hilang. **Ini insiden keamanan**: siapa pun yang tahu URL bisa menghapus data.
 
-| Alert | Risk Level | Confidence | URL | Solusi |
-|-------|-----------|-----------|-----|--------|
-| SQL Injection | High | Medium | /api/index.php | Gunakan prepared statements |
-| ... | ... | ... | ... | ... |
+### Langkah 4.3 — Tulis versi aman
 
-#### 3c. Perbaiki Minimal 2 Alert (10 poin)
+Ganti blok DELETE dengan versi yang memeriksa Bearer token. **Ketik dari gambar:**
 
-Pilih **minimal 2 alert dengan Risk Level HIGH atau MEDIUM** dari hasil scan ZAP.
+![Demo 4 — Versi Aman](images/p7_demo4_secure.png)
 
-Untuk setiap alert:
-1. Jelaskan deskripsi alert dari ZAP
-2. Tunjukkan kode yang bermasalah
-3. Tunjukkan kode perbaikan
-4. Verifikasi dengan menjalankan ulang scan — alert harus hilang atau turun risk levelnya
+### Langkah 4.4 — Verifikasi
+
+Tiga test di Postman:
+
+1. DELETE **tanpa** header → **401 Unauthorized**
+2. DELETE dengan header `Authorization: Bearer token-salah` → **401 Unauthorized**
+3. DELETE dengan header `Authorization: Bearer rahasia-praktek7` → **200 OK**
+
+Restore data yang terhapus lewat phpMyAdmin sebelum lanjut.
 
 ---
 
-### Soal 4 — Implementasi Perbaikan dan Verifikasi (10 poin)
+## 📝 Soal 1 — Deteksi & Perbaiki Kerentanan (50 poin)
 
-Implementasikan file `api/index_fixed.php` yang merupakan versi aman dari API.
+Diberikan kode endpoint **search** untuk produk berikut. Kode ini mengandung **minimal 4 kerentanan keamanan**.
 
-![Fixed Code](images/p7_fixed_code.png)
+![Soal 1 — Kode untuk Dianalisis](images/p7_soal1_kode.png)
 
-File ini harus menerapkan:
-- **PDO prepared statements** untuk semua query (mencegah SQL Injection)
-- **Input validation** — validasi tipe data dan panjang input
-- **Proper error handling** — jangan tampilkan detail error ke client
-- **HTTP method check** — pastikan method yang tepat digunakan
+### Tugas 1.A — Identifikasi (20 poin)
 
-Contoh kerangka kode yang perlu dilengkapi:
+Buat tabel berikut di file `JAWABAN_SOAL1.md`. Daftarkan **minimal 4 kerentanan**:
 
-```php
-<?php
-// api/index_fixed.php — VERSI AMAN
+| # | Nama Kerentanan | OWASP | Lokasi (baris/blok) | Contoh Payload | Dampak |
+|---|---|---|---|---|---|
+| 1 | ... | A0x | ... | `...` | ... |
+| 2 | ... | ... | ... | ... | ... |
+| 3 | ... | ... | ... | ... | ... |
+| 4 | ... | ... | ... | ... | ... |
 
-require_once 'config.php';
+### Tugas 1.B — Buktikan dengan Postman (10 poin)
 
-$pdo = new PDO(
-    "mysql:host=$db_host;dbname=$db_name;charset=utf8mb4",
-    $db_user,
-    $db_pass,
-    [
-        PDO::ATTR_ERRMODE            => PDO::ERRMODE_EXCEPTION,
-        PDO::ATTR_DEFAULT_FETCH_MODE => PDO::FETCH_ASSOC,
-    ]
-);
+Pilih **2 kerentanan** dari Tugas 1.A. Untuk masing-masing:
+- Kirim request berbahaya dari Postman
+- Screenshot request + response yang menunjukkan eksploitasi berhasil
+- Tempel di `JAWABAN_SOAL1.md` dengan caption singkat
 
-$method = $_SERVER['REQUEST_METHOD'];
+### Tugas 1.C — Tulis Perbaikan (20 poin)
 
-// Helper: kirim JSON response
-function jsonResponse(mixed $data, int $status = 200): void {
-    http_response_code($status);
-    header('Content-Type: application/json');
-    echo json_encode($data);
-    exit;
-}
+Tulis ulang seluruh kode endpoint search menjadi **versi aman**. Simpan sebagai `api/search_secure.php`. Versi aman wajib menerapkan:
+- Input validation (panjang, tipe, karakter)
+- Prepared statement untuk **semua** query
+- Error handling yang tidak membocorkan detail
+- Pagination dengan batas maksimum
 
-// Helper: validasi integer positif
-function validatePositiveInt(mixed $value): ?int {
-    $int = filter_var($value, FILTER_VALIDATE_INT, ['options' => ['min_range' => 1]]);
-    return $int !== false ? (int) $int : null;
-}
+Verifikasi: ulangi 2 serangan dari Tugas 1.B terhadap `search_secure.php` — semua harus diblokir dengan response yang tepat (400/422/dst).
 
-if ($method === 'GET') {
-    $id = validatePositiveInt($_GET['id'] ?? null);
-    if ($id === null) {
-        // TODO: kembalikan semua produk atau error jika id tidak valid
-    }
-    // TODO: gunakan prepared statement untuk query by id
+---
 
-} elseif ($method === 'POST') {
-    $data = json_decode(file_get_contents('php://input'), true);
-    // TODO: validasi semua field sebelum dimasukkan ke database
-    // TODO: gunakan prepared statement untuk INSERT
-}
-```
+## 📝 Soal 2 — Automated Security Scan dengan OWASP ZAP (50 poin)
 
-Jalankan PHPUnit test untuk memverifikasi API yang sudah diperbaiki:
+Gunakan **OWASP ZAP** untuk men-*scan* API rentan dari Demo 1–4.
 
-![Test Output](images/p7_test_output.png)
+### Tugas 2.A — Konfigurasi & Spider (10 poin)
 
-```bash
-vendor/bin/phpunit --testdox tests/security_test.php
+1. Pastikan API rentan masih jalan di `http://localhost/praktek7/api/index.php`.
+2. Buka ZAP → tab **Quick Start** → **Manual Explore** → masukkan URL → **Launch Browser**.
+3. Browse beberapa endpoint via browser yang dibuka ZAP (GET, POST via simple form, dll).
+4. Atau jalankan **Spider** langsung pada `http://localhost/praktek7/`.
+5. Screenshot hasil sites tree di ZAP.
+
+### Tugas 2.B — Active Scan (15 poin)
+
+![ZAP Active Scan Results](images/p7_zap_scan.png)
+
+1. Klik kanan node `http://localhost/praktek7/` di sites tree → **Attack → Active Scan** → **Start Scan**.
+2. Tunggu sampai progress 100% (2–10 menit).
+3. Tab **Alerts** akan terisi temuan.
+4. Dokumentasikan **minimal 2 alert dengan Risk HIGH atau MEDIUM** dalam tabel:
+
+| # | Alert | Risk | Confidence | URL | Deskripsi singkat |
+|---|---|---|---|---|---|
+| 1 | ... | HIGH | ... | ... | ... |
+| 2 | ... | ... | ... | ... | ... |
+
+### Tugas 2.C — Perbaiki & Verifikasi (25 poin)
+
+Untuk **2 alert HIGH/MEDIUM** yang dipilih:
+
+1. Tunjukkan **kode bermasalah** (kutip dari file praktek).
+2. Tunjukkan **kode perbaikan** (boleh referensi dari Demo 1–4 yang relevan).
+3. Jalankan **Active Scan ulang** terhadap kode yang sudah diperbaiki.
+4. Screenshot tab Alerts setelah perbaikan — alert tersebut harus **hilang** atau **turun risk level**.
+
+Tulis hasil di `JAWABAN_SOAL2.md` dengan format:
+
+```markdown
+## Alert 1: <nama alert>
+- Risk: ...
+- Kode bermasalah: <snippet>
+- Kode perbaikan: <snippet>
+- Verifikasi: <screenshot scan ulang>
+
+## Alert 2: ...
 ```
 
 ---
 
-### Soal 5 — Refleksi (10 poin)
+## Yang Dikumpulkan
 
-Jawab pertanyaan berikut dalam file `REFLEKSI.md` (minimal 3 kalimat per jawaban):
-
-1. **Principle of Least Privilege**
-   Jelaskan apa yang dimaksud dengan *principle of least privilege* dalam konteks keamanan aplikasi web. Berikan contoh konkret bagaimana prinsip ini dapat diterapkan pada API produk yang sudah dibuat.
-
-2. **Urutan Security Testing**
-   Mengapa security testing sebaiknya dilakukan **setelah** functional testing, bukan sebaliknya? Apa risiko jika security testing dilakukan lebih dulu ketika banyak fitur masih belum selesai?
-
-3. **SAST vs DAST**
-   Jelaskan perbedaan mendasar antara **SAST** (Static Application Security Testing) dan **DAST** (Dynamic Application Security Testing). Dalam skenario pengembangan API PHP seperti di praktek ini, kapan Anda akan menggunakan masing-masing pendekatan?
-
----
-
-## Cara Menjalankan Test PHPUnit
-
-```bash
-# Install dependencies
-composer install
-
-# Jalankan semua security test
-vendor/bin/phpunit
-
-# Jalankan dengan output detail
-vendor/bin/phpunit --testdox
-
-# Jalankan hanya file security_test.php
-vendor/bin/phpunit tests/security_test.php
+Buat ZIP berisi:
 ```
-
-### Contoh Output yang Diharapkan
-
-![Expected Test Output](images/p7_test_output.png)
-
-```
-Security Tests
- ✔ sql injection pada GET id diblokir
- ✔ sql injection pada POST name diblokir
- ✔ input name terlalu panjang ditolak
- ✔ price negatif ditolak
- ✔ stock non-integer ditolak
- ✔ delete tanpa autentikasi ditolak
- ✔ xss payload disimpan sebagai plain text
-
-OK (7 tests, 14 assertions)
-Time: 00:00.214, Memory: 6.00 MB
+praktek7_<NIM>_<Nama>/
+├── api/
+│   ├── config.php
+│   ├── index.php           ← versi akhir (aman, hasil Demo 1–4)
+│   └── search_secure.php   ← jawaban Soal 1.C
+├── postman_collection.json ← export koleksi Postman dari Demo + Soal
+├── JAWABAN_SOAL1.md
+├── JAWABAN_SOAL2.md
+└── screenshots/
+    ├── demo1_attack_response.png
+    ├── demo2_attack_response.png
+    ├── demo4_unauthorized.png
+    ├── zap_alerts_before.png
+    └── zap_alerts_after.png
 ```
 
 ---
 
 ## Kriteria Penilaian
 
-| Soal | Bobot | Kriteria |
-|------|-------|----------|
-| Soal 1 | 20 poin | Identifikasi 3 kerentanan tepat, kategori OWASP benar, dampak dijelaskan |
-| Soal 2 | 30 poin | Pengujian Postman terdokumentasi, perbaikan PDO prepared statements benar dan terverifikasi |
-| Soal 3 | 30 poin | Konfigurasi ZAP terdokumentasi, hasil scan dicatat, minimal 2 alert HIGH/MEDIUM diperbaiki |
-| Soal 4 | 10 poin | API fixed menggunakan prepared statements, validasi input, dan error handling yang benar |
-| Soal 5 | 10 poin | Jawaban refleksi tepat dan menunjukkan pemahaman konsep keamanan |
+| Bagian | Bobot | Indikator |
+|---|---|---|
+| Demo 1–4 selesai (file `api/index.php` aman) | — | Wajib (gerbang) — tidak dinilai tapi prasyarat soal |
+| **Soal 1.A** Identifikasi 4+ kerentanan | 20 |  Kategori OWASP benar, lokasi tepat, payload masuk akal |
+| **Soal 1.B** Bukti eksploitasi 2 kerentanan | 10 | Screenshot Postman + caption jelas |
+| **Soal 1.C** Implementasi `search_secure.php` | 20 | Prepared statement, validasi, pagination, error generik |
+| **Soal 2.A** Konfigurasi & Spider ZAP | 10 | Sites tree menunjukkan endpoint praktek7 |
+| **Soal 2.B** Dokumentasi 2 alert HIGH/MEDIUM | 15 | Tabel lengkap, deskripsi tepat |
+| **Soal 2.C** Perbaikan & verifikasi scan ulang | 25 | Alert berkurang/turun setelah perbaikan, screenshot lengkap |
+| **Total** | **100** | |
 
-**Total: 100 poin**
+---
+
+## Lampiran — Cara Verifikasi dengan PHPUnit (opsional)
+
+Bagi yang sudah selesai, jalankan test suite untuk memverifikasi seluruh perbaikan:
+
+```bash
+composer install
+vendor/bin/phpunit --testdox tests/security_test.php
+```
+
+Output yang diharapkan:
+
+![PHPUnit Test Output](images/p7_test_output.png)

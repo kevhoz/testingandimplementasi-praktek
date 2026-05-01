@@ -21,7 +21,8 @@
       "Bash(py generate_images_p6.py)",
       "Bash(py generate_images_p8.py)",
       "Bash(ls /c/Python*)",
-      "Bash(py --version)"
+      "Bash(py --version)",
+      "Bash(git check-ignore *)"
     ]
   }
 }

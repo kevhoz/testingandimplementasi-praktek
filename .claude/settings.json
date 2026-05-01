@@ -1,0 +1,11 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(php --version)",
+      "Bash(php -r \"echo phpversion\\(\\); echo PHP_EOL; echo ini_get\\('assert.active'\\); echo PHP_EOL; echo ini_get\\('assert.exception'\\);\")",
+      "Bash(php -r \"require 'vendor/autoload.php'; var_dump\\(interface_exists\\('PHPUnit\\\\\\\\Event\\\\\\\\Subscriber'\\)\\);\")",
+      "Bash(composer show *)",
+      "Bash(php -r ' *)"
+    ]
+  }
+}
