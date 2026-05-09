@@ -288,7 +288,7 @@ def test_sort_produk_harga_termurah_ke_termahal(driver):
 Simpan seluruh kode di atas sebagai `advanced_purchase_flow.py`, lalu:
 
 ```bash
-pytest advanced_purchase_flow.py -v
+python -m pytest advanced_purchase_flow.py -v
 ```
 
 Output yang diharapkan:
