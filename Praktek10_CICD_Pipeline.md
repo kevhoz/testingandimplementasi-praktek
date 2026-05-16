@@ -1,4 +1,4 @@
-# Praktek 9 — CI/CD & Test Automation Pipeline dengan GitHub Actions
+# Praktek 10 — CI/CD & Test Automation Pipeline dengan GitHub Actions
 
 ## Tujuan Pembelajaran
 

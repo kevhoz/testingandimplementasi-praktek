@@ -1,4 +1,4 @@
-# Praktek 10 — Selenium Testing dengan Python
+# Praktek 8 — Selenium Testing dengan Python
 
 ## Tujuan Pembelajaran
 

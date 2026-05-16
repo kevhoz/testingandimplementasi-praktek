@@ -1,4 +1,4 @@
-# Praktek 8 — End-to-End Testing dengan Playwright
+# Praktek 9 — End-to-End Testing dengan Playwright
 
 ## Tujuan Pembelajaran
 
@@ -235,6 +235,56 @@ Backend menggunakan PDO untuk operasi MySQL:
 - `POST /api.php` dengan `action=add&task=...` — tambah todo baru
 - `POST /api.php` dengan `action=done&id=...` — tandai selesai
 - `POST /api.php` dengan `action=delete&id=...` — hapus todo
+
+---
+
+## Demo Sederhana
+
+> Ketik kode berikut sendiri (tidak boleh copy-paste) agar terbiasa dengan sintaks Playwright.
+> Gunakan aplikasi `simple_app/index.html` yang disediakan sebagai target pengujian.
+
+### Demo Sederhana 1 — Cek Judul Halaman
+
+Test paling dasar: buka halaman dan verifikasi judulnya.
+
+![Demo Sederhana 1 — Kode](images/p9_simple1_code.png)
+
+Cara menjalankan:
+```bash
+npx playwright test simple1_judul.spec.js --headed
+```
+
+Output yang diharapkan:
+```
+Running 1 test using 1 worker
+  ✓  simple1_judul.spec.js:12 › judul halaman harus "Todo App Sederhana"  (1.2s)
+1 passed (2.1s)
+```
+
+---
+
+### Demo Sederhana 2 — Tambah Item ke Daftar
+
+Test interaksi: isi input, klik tombol, dan verifikasi hasilnya.
+
+![Demo Sederhana 2 — Kode](images/p9_simple2_code.png)
+
+Cara menjalankan:
+```bash
+npx playwright test simple2_tambah_item.spec.js --headed
+```
+
+Output yang diharapkan:
+```
+Running 1 test using 1 worker
+  ✓  simple2_tambah_item.spec.js:12 › dapat menambah item baru ke daftar  (1.8s)
+1 passed (2.5s)
+```
+
+**Perbedaan Playwright vs Selenium (yang sudah dipelajari di Praktek 8):**
+- Tidak perlu `WebDriverWait` — Playwright **auto-wait** sampai elemen siap
+- `await page.fill()` jauh lebih singkat dari `driver.find_element(...).send_keys()`
+- `await expect(...)` auto-retry sampai kondisi terpenuhi atau timeout
 
 ---
 
