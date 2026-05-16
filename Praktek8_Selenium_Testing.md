@@ -71,7 +71,7 @@ python --version
 
 **Ketik perintah berikut dari gambar** ke terminal — biasakan membaca dan mengetik perintah, bukan menyalin langsung:
 
-![Persiapan — Install & Cek](images/p10_setup.png)
+![Persiapan — Install & Cek](images/p8_setup.png)
 
 Perintah yang diketik:
 ```
@@ -104,7 +104,7 @@ Ini adalah test Selenium paling dasar — hanya membuka URL dan membaca properti
 
 Buat file `simple1_title_check.py`. **Ketik seluruh kode dari gambar berikut** (jangan copy-paste):
 
-![Demo Sederhana 1 — Kode](images/p10_simple1_code.png)
+![Demo Sederhana 1 — Kode](images/p8_simple1_code.png)
 
 ### Langkah DS1.2 — Jalankan
 
@@ -139,7 +139,7 @@ Poin-poin penting dari kode ini:
 
 Buat file `simple2_login.py`. **Ketik seluruh kode dari gambar berikut:**
 
-![Demo Sederhana 2 — Kode](images/p10_simple2_code.png)
+![Demo Sederhana 2 — Kode](images/p8_simple2_code.png)
 
 ### Langkah DS2.2 — Jalankan
 
@@ -311,7 +311,7 @@ Buat file **`soal1_selenium.py`** berisi **4 test case pytest** menggunakan Sele
 
 **Petunjuk pengerjaan yang dapat kamu baca dari gambar:**
 
-![Soal 1 — Deskripsi](images/p10_soal_deskripsi.png)
+![Soal 1 — Deskripsi](images/p8_soal_deskripsi.png)
 
 ### Tugas 1.A — Test Login Negatif: Username Kosong (25 poin)
 

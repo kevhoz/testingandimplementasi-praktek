@@ -73,7 +73,7 @@ Di CI/CD, semua ini dijalankan secara otomatis dan berurutan — jika test awal 
 
 Dalam pipeline CI, urutan dari bawah ke atas: unit/integration dulu, baru E2E. Jika unit test gagal, tidak perlu buang waktu jalankan E2E.
 
-![CI/CD Pipeline](images/p9_cicd_pipeline.png)
+![CI/CD Pipeline](images/p10_cicd_pipeline.png)
 
 ---
 
@@ -199,7 +199,7 @@ services:
     path: report/phpunit-report.xml
 ```
 
-![Workflow Structure](images/p9_workflow_structure.png)
+![Workflow Structure](images/p10_workflow_structure.png)
 
 ---
 
@@ -295,7 +295,7 @@ jobs:
 
 > Simpan file di `.github/workflows/php-tests.yml` di root repository Anda, lalu commit dan push. Buka tab **Actions** di GitHub untuk melihat workflow berjalan.
 
-![php-tests.yml](images/p9_php_workflow.png)
+![php-tests.yml](images/p10_php_workflow.png)
 
 ---
 
@@ -406,7 +406,7 @@ jobs:
 
 > Pastikan `playwright.config.js` membaca `BASE_URL` dari environment variable agar URL dapat dikonfigurasi di CI.
 
-![e2e-tests.yml](images/p9_e2e_workflow.png)
+![e2e-tests.yml](images/p10_e2e_workflow.png)
 
 ---
 
@@ -565,7 +565,7 @@ jobs:
           echo "============================================"
 ```
 
-![Full Pipeline](images/p9_full_pipeline.png)
+![Full Pipeline](images/p10_full_pipeline.png)
 
 ---
 
@@ -587,7 +587,7 @@ Ganti `USERNAME` dan `REPO` dengan nama GitHub Anda.
 
 **b) Screenshot GitHub Actions UI**
 
-Ambil screenshot halaman Actions di GitHub yang menunjukkan pipeline berjalan hijau (semua job centang hijau). Simpan sebagai `images/p9_pipeline_success.png`.
+Ambil screenshot halaman Actions di GitHub yang menunjukkan pipeline berjalan hijau (semua job centang hijau). Simpan sebagai `images/p10_pipeline_success.png`.
 
 **c) Dokumentasi Waktu Eksekusi**
 
@@ -601,7 +601,7 @@ Isi tabel berikut berdasarkan hasil aktual dari GitHub Actions UI:
 
 Jawab: Job mana yang paling lambat dan mengapa?
 
-![Pipeline Success](images/p9_pipeline_success.png)
+![Pipeline Success](images/p10_pipeline_success.png)
 
 ---
 
@@ -624,7 +624,7 @@ Apa yang dimaksud dengan **deployment gate** dalam konteks `full-pipeline.yml` y
 
 Setelah semua workflow dikonfigurasi dengan benar, GitHub Actions UI akan menampilkan status tiap job:
 
-![Pipeline Success](images/p9_pipeline_success.png)
+![Pipeline Success](images/p10_pipeline_success.png)
 
 ```
 Full Test Pipeline

@@ -191,7 +191,7 @@ use: {
 
 ### Arsitektur Playwright
 
-![Playwright Architecture](images/p8_playwright_arch.png)
+![Playwright Architecture](images/p9_playwright_arch.png)
 
 ```
 Test Code (Node.js)
@@ -220,7 +220,7 @@ Playwright berkomunikasi langsung dengan browser menggunakan **Chrome DevTools P
 
 Aplikasi Todo sederhana dengan form input dan daftar tugas:
 
-![App Screenshot](images/p8_app_screenshot.png)
+![App Screenshot](images/p9_app_screenshot.png)
 
 Fitur aplikasi:
 - **Tambah tugas** — form input + tombol Tambah
@@ -266,11 +266,11 @@ npx playwright test
 
 d) Tampilkan isi `package.json` yang terbentuk:
 
-![package.json](images/p8_package_json.png)
+![package.json](images/p9_package_json.png)
 
 e) Tampilkan isi `playwright.config.js` yang terbentuk:
 
-![playwright.config.js](images/p8_playwright_config.png)
+![playwright.config.js](images/p9_playwright_config.png)
 
 **Yang dikumpulkan:** Screenshot terminal saat `npm init playwright@latest` berhasil, dan screenshot isi kedua file konfigurasi.
 
@@ -280,7 +280,7 @@ e) Tampilkan isi `playwright.config.js` yang terbentuk:
 
 Buat file `tests/todo.spec.js` dan implementasikan test untuk **alur tambah item**:
 
-![Todo Test](images/p8_todo_test.png)
+![Todo Test](images/p9_todo_test.png)
 
 ```javascript
 const { test, expect } = require('@playwright/test');
@@ -392,7 +392,7 @@ npx playwright show-report
 
 d) Screenshot hasil test menunjukkan tiga browser berjalan:
 
-![Test Output](images/p8_test_output.png)
+![Test Output](images/p9_test_output.png)
 
 **Kriteria penilaian Soal 4:**
 - `playwright.config.js` memiliki tiga project browser (4 poin)
@@ -442,7 +442,7 @@ npx playwright test --debug
 
 ### Contoh Output yang Diharapkan
 
-![CLI Output](images/p8_cli_output.png)
+![CLI Output](images/p9_cli_output.png)
 
 ```
 Running 12 tests using 4 workers
