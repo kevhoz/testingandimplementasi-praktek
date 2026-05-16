@@ -3,11 +3,11 @@
 ## Tujuan Pembelajaran
 
 Setelah menyelesaikan praktek ini, mahasiswa mampu:
-- Membuat aplikasi web sederhana sebagai target pengujian
-- Menjalankan server lokal dan memverifikasi aplikasi bekerja sebelum ditulis tesnya
-- Menginstal dan mengkonfigurasi **Playwright** untuk E2E testing
-- Menulis test yang mensimulasikan interaksi pengguna: buka halaman, isi form, klik tombol, verifikasi hasil
-- Memahami perbedaan auto-wait Playwright vs explicit wait Selenium (Praktek 8)
+- Memahami konsep **End-to-End (E2E) testing** dan perbedaannya dengan unit test
+- Menginstal dan mengkonfigurasi **Playwright** untuk otomasi browser
+- Menulis test yang mensimulasikan alur pengguna: buka URL, isi form, klik tombol, verifikasi hasil
+- Membandingkan Playwright (JavaScript) vs Selenium (Python) pada situs yang sama
+- Menerapkan **multi-browser testing** dengan satu konfigurasi
 
 ---
 
@@ -15,16 +15,13 @@ Setelah menyelesaikan praktek ini, mahasiswa mampu:
 
 ### Apa itu End-to-End Testing?
 
-E2E testing menguji aplikasi **dari sudut pandang pengguna**. Browser dibuka secara otomatis, tombol diklik, form diisi, dan hasilnya diverifikasi — persis seperti yang dilakukan pengguna nyata.
-
-Contoh skenario E2E:
-> *"Pengguna membuka halaman todo, mengetik 'Beli susu', menekan tombol Tambah, dan melihat item baru muncul di daftar."*
+E2E testing menguji aplikasi **dari sudut pandang pengguna**. Browser dibuka secara otomatis, tombol diklik, form diisi, dan hasilnya diverifikasi — persis seperti pengguna nyata.
 
 ### Testing Pyramid
 
 ```
         ┌───────────┐
-        │   E2E     │  ← Sedikit, lambat, tapi paling realistis
+        │   E2E     │  ← Sedikit, lambat, paling realistis
         ├───────────┤
         │    API    │  ← Sedang, menguji kontrak endpoint
         ├───────────┤
@@ -32,178 +29,57 @@ Contoh skenario E2E:
         └───────────┘
 ```
 
-- **Unit test** membentuk fondasi — jumlah terbanyak, paling cepat
-- **E2E test** berada di puncak — jumlah paling sedikit, paling lambat, paling realistis
-- Keduanya saling melengkapi, tidak saling menggantikan
+### Playwright vs Selenium — Situs yang Sama
 
-### Mengapa Playwright, Bukan Selenium?
+Di Praktek 8 kita menulis test Selenium di Python untuk **saucedemo.com**. Di praktek ini kita menulis test Playwright di JavaScript untuk **situs yang sama**. Perhatikan betapa lebih ringkas kodenya.
 
-| Fitur | Playwright | Selenium (Praktek 8) |
-|-------|------------|----------------------|
-| Auto-wait | **Ya** — otomatis tunggu elemen siap | Tidak — perlu `WebDriverWait` eksplisit |
-| Bahasa | JavaScript/TypeScript, Python | Python, Java, C# |
-| Multi-browser | Chromium, Firefox, WebKit built-in | Butuh driver terpisah |
-| Instalasi | Satu perintah | Konfigurasi ChromeDriver manual |
-| Standar industri | Semakin dominan (2020+) | Legacy, masih dipakai di korporat lama |
+| Fitur | Selenium (Praktek 8) | Playwright (Praktek 9) |
+|-------|---------------------|------------------------|
+| Bahasa | Python | JavaScript |
+| Auto-wait | Tidak — perlu `WebDriverWait` | **Ya** — otomatis |
+| Multi-browser | Driver terpisah per browser | Built-in (Chromium, Firefox, WebKit) |
+| Instalasi browser | Manual (chromedriver) | `npx playwright install` |
+| Tutup browser | `driver.quit()` di `finally` | Otomatis setelah setiap test |
+| Assert elemen | `assert element.text == 'teks'` | `await expect(locator).toHaveText('teks')` |
 
----
+### Arsitektur Playwright
 
-## Bagian 1 — Buat & Jalankan Aplikasi Target
-
-Sebelum menulis test, kita perlu aplikasi yang akan diuji. Kita akan membuat **Todo App** sederhana berbasis HTML + JavaScript murni — tidak membutuhkan database atau backend.
-
-### 1.1 Buat Folder dan File Aplikasi
-
-Buat folder baru dan buat file `index.html` di dalamnya:
-
-```bash
-mkdir praktek9_e2e
-cd praktek9_e2e
-```
-
-Buat file `index.html` dengan isi berikut:
-
-```html
-<!DOCTYPE html>
-<html lang="id">
-<head>
-  <meta charset="UTF-8" />
-  <title>Todo App Sederhana</title>
-  <style>
-    body { font-family: sans-serif; max-width: 480px; margin: 40px auto; padding: 0 16px; }
-    h1   { font-size: 1.4rem; margin-bottom: 16px; }
-    #input-row { display: flex; gap: 8px; margin-bottom: 24px; }
-    #task-input { flex: 1; padding: 8px 12px; border: 1px solid #ccc;
-                  border-radius: 4px; font-size: 1rem; }
-    #add-btn { padding: 8px 16px; background: #2563eb; color: #fff;
-               border: none; border-radius: 4px; cursor: pointer; font-size: 1rem; }
-    #add-btn:hover { background: #1d4ed8; }
-    #empty-msg { color: #888; font-style: italic; }
-    .todo-item { display: flex; align-items: center; gap: 8px;
-                 padding: 8px 0; border-bottom: 1px solid #eee; }
-    .todo-item input[type=checkbox] { cursor: pointer; }
-    .todo-item span { flex: 1; }
-    .todo-item.done span { text-decoration: line-through; color: #aaa; }
-    .del-btn { background: #ef4444; color: #fff; border: none;
-               border-radius: 4px; padding: 2px 8px; cursor: pointer; }
-  </style>
-</head>
-<body>
-  <h1>Todo App</h1>
-
-  <div id="input-row">
-    <input type="text" id="task-input" placeholder="Tugas baru..." />
-    <button id="add-btn">Tambah</button>
-  </div>
-
-  <ul id="todo-list" style="list-style:none; padding:0; margin:0;"></ul>
-  <p id="empty-msg">Belum ada tugas.</p>
-
-  <script>
-    const list     = document.getElementById('todo-list');
-    const input    = document.getElementById('task-input');
-    const addBtn   = document.getElementById('add-btn');
-    const emptyMsg = document.getElementById('empty-msg');
-
-    function render(items) {
-      list.innerHTML = '';
-      emptyMsg.style.display = items.length === 0 ? '' : 'none';
-      items.forEach((item, idx) => {
-        const li   = document.createElement('li');
-        li.className = 'todo-item' + (item.done ? ' done' : '');
-
-        const cb   = document.createElement('input');
-        cb.type    = 'checkbox';
-        cb.checked = item.done;
-        cb.addEventListener('change', () => { items[idx].done = cb.checked; render(items); });
-
-        const span = document.createElement('span');
-        span.textContent = item.text;
-
-        const del  = document.createElement('button');
-        del.className   = 'del-btn';
-        del.textContent = 'Hapus';
-        del.addEventListener('click', () => { items.splice(idx, 1); render(items); });
-
-        li.appendChild(cb);
-        li.appendChild(span);
-        li.appendChild(del);
-        list.appendChild(li);
-      });
-    }
-
-    const todos = [];
-    render(todos);
-
-    addBtn.addEventListener('click', () => {
-      const text = input.value.trim();
-      if (!text) return;
-      todos.push({ text, done: false });
-      input.value = '';
-      render(todos);
-    });
-
-    input.addEventListener('keydown', e => { if (e.key === 'Enter') addBtn.click(); });
-  </script>
-</body>
-</html>
-```
-
-### 1.2 Jalankan Server Lokal
-
-Python sudah terinstall dari Praktek 8. Gunakan built-in HTTP server bawaan Python:
-
-```bash
-python -m http.server 8000
-```
-
-Buka browser ke: **http://localhost:8000**
-
-Tampilan aplikasi:
-
-![Todo App — Tampilan](images/p9_app_screenshot.png)
-
-### 1.3 Verifikasi Aplikasi Berjalan Normal
-
-Pastikan semua fitur bekerja **sebelum** menulis test:
-
-| Aksi | Hasil yang Diharapkan |
-|------|-----------------------|
-| Buka `http://localhost:8000` | Halaman terbuka, tampil teks *"Belum ada tugas."* |
-| Ketik tugas → klik **Tambah** | Item baru muncul di daftar |
-| Ketik tugas → tekan **Enter** | Item baru muncul di daftar |
-| Centang checkbox | Teks item menjadi coret (*strikethrough*) |
-| Klik **Hapus** | Item hilang dari daftar |
-| Hapus semua item | Teks *"Belum ada tugas."* muncul kembali |
-
-Jika semua fitur bekerja, aplikasi siap diuji otomatis.
-
-> **Biarkan server tetap berjalan** di terminal ini. Buka terminal baru untuk langkah berikutnya.
+![Playwright Architecture](images/p9_playwright_arch.png)
 
 ---
 
-## Bagian 2 — Install Playwright
+## Persiapan
 
-### 2.1 Prasyarat: Node.js
+### 1. Prasyarat: Node.js
 
-Playwright membutuhkan Node.js versi 18 atau lebih baru. Cek versi:
+Playwright membutuhkan Node.js versi 18 atau lebih baru:
 
 ```bash
 node --version   # harus >= v18.0.0
 npm --version    # harus >= 8.0.0
 ```
 
-Jika belum terinstall: unduh dari **https://nodejs.org** dan pilih versi **LTS**.
+Jika belum terinstall: unduh dari **https://nodejs.org** pilih versi **LTS**.
 
-### 2.2 Inisialisasi Proyek Playwright
+**Winget (Windows 11):**
+```bash
+winget install OpenJS.NodeJS.LTS
+```
 
-Masuk ke folder `praktek9_e2e` (terminal baru), lalu jalankan:
+### 2. Buat Folder Proyek
+
+```bash
+mkdir praktek9_e2e
+cd praktek9_e2e
+```
+
+### 3. Inisialisasi Playwright
 
 ```bash
 npm init playwright@latest
 ```
 
-Saat ditanya, jawab seperti ini:
+Jawab seperti ini:
 
 ```
 Where to put your end-to-end tests? › tests
@@ -212,67 +88,44 @@ Install Playwright browsers?         › y
 ```
 
 Proses ini akan:
-1. Membuat `package.json` dan `package-lock.json`
-2. Membuat `playwright.config.js`
-3. Mengunduh browser binaries Chromium, Firefox, WebKit (±250 MB, tunggu sampai selesai)
+1. Membuat `package.json` dan `playwright.config.js`
+2. Mengunduh browser binaries Chromium, Firefox, WebKit (±250 MB)
 
-Setelah selesai, tampilan `package.json`:
+Tampilan `package.json` yang terbentuk:
 
 ![package.json](images/p9_package_json.png)
 
-### 2.3 Konfigurasi `playwright.config.js`
+### 4. Konfigurasi `playwright.config.js`
 
-Buka `playwright.config.js` yang terbentuk. Cari bagian `use:` dan tambahkan `baseURL`:
+Buka `playwright.config.js` dan ubah bagian `use:` agar mengarah ke saucedemo:
 
 ```javascript
 use: {
-  baseURL: 'http://localhost:8000',
+  baseURL: 'https://www.saucedemo.com',
   screenshot: 'only-on-failure',
 },
 ```
 
-Dengan `baseURL`, cukup tulis `page.goto('/')` di setiap test — tidak perlu mengetik URL penuh setiap kali.
+Dengan `baseURL`, cukup tulis `page.goto('/')` di setiap test.
 
 Tampilan `playwright.config.js` setelah diedit:
 
 ![playwright.config.js](images/p9_playwright_config.png)
 
-### 2.4 Verifikasi Instalasi
+### 5. Verifikasi Instalasi
 
-Hapus file contoh bawaan Playwright, lalu verifikasi instalasi:
-
-```bash
-# Hapus file contoh (bawaan dari init)
-del tests\example.spec.js        # Windows
-rm tests/example.spec.js         # Mac/Linux
-```
-
-Buat file test sementara `tests/cek.spec.js`:
-
-```javascript
-const { test, expect } = require('@playwright/test');
-
-test('server dan playwright berjalan', async ({ page }) => {
-  await page.goto('/');
-  await expect(page).toHaveTitle('Todo App Sederhana');
-});
-```
-
-Jalankan:
+Hapus file contoh bawaan, buat test sederhana, dan jalankan:
 
 ```bash
-npx playwright test tests/cek.spec.js
+del tests\example.spec.js     # Windows
+rm tests/example.spec.js      # Mac/Linux
 ```
 
-Output yang diharapkan:
-
-```
-Running 1 test using 1 worker
-  ✓  tests/cek.spec.js:3 › server dan playwright berjalan  (1.4s)
-1 passed (2.3s)
+```bash
+npx playwright test --project=chromium
 ```
 
-Jika lulus: instalasi berhasil! Hapus file `tests/cek.spec.js` sebelum melanjutkan.
+Jika muncul output `0 passed` (karena folder tests kosong) — instalasi berhasil dan Playwright siap dipakai.
 
 ---
 
@@ -288,207 +141,217 @@ test('nama test yang deskriptif', async ({ page }) => {
   await page.goto('/');
 
   // Act: lakukan aksi
-  await page.fill('#task-input', 'Beli susu');
-  await page.click('#add-btn');
+  await page.fill('#user-name', 'standard_user');
+  await page.click('#login-button');
 
   // Assert: verifikasi hasil
-  await expect(page.locator('.todo-item span')).toHaveText('Beli susu');
+  await expect(page).toHaveURL(/.*inventory\.html/);
 });
 ```
 
-### Auto-Wait — Keunggulan Playwright vs Selenium
+### Auto-Wait — Perbedaan Utama dari Selenium
 
-Playwright **menunggu secara otomatis** setiap kali berinteraksi dengan elemen. Tidak perlu `WebDriverWait` atau `time.sleep()`:
+Playwright menunggu **secara otomatis** sampai elemen siap sebelum berinteraksi. Tidak perlu `WebDriverWait`:
 
-| Skenario | Selenium (Praktek 8) | Playwright |
-|----------|---------------------|-----------|
-| Tunggu elemen | `WebDriverWait(driver, 10).until(EC.visibility_of(...))` | **Otomatis** |
-| Klik tombol | `find_element(By.ID, "btn").click()` | `await page.click('#btn')` |
-| Verifikasi teks | `assert element.text == 'teks'` | `await expect(locator).toHaveText('teks')` — auto-retry |
+```
+Selenium (Praktek 8):                    Playwright (Praktek 9):
+──────────────────────────────           ────────────────────────────
+wait = WebDriverWait(driver, 10)         await page.click('#login-button');
+wait.until(EC.element_to_be_            // Playwright otomatis tunggu
+  clickable((By.ID, "login-button")))   // sampai tombol bisa diklik
+driver.find_element(By.ID,
+  "login-button").click()
+```
 
 ### Navigasi dan Interaksi
 
 | Method | Kegunaan | Contoh |
 |--------|----------|--------|
 | `page.goto('/')` | Buka halaman | `await page.goto('/')` |
-| `page.fill(sel, text)` | Isi input field | `await page.fill('#task-input', 'Beli susu')` |
-| `page.click(sel)` | Klik elemen | `await page.click('#add-btn')` |
-| `page.press(sel, key)` | Tekan tombol keyboard | `await page.press('#task-input', 'Enter')` |
-| `page.locator(sel)` | Referensi ke elemen | `page.locator('.todo-item')` |
+| `page.fill(sel, text)` | Isi input field | `await page.fill('#user-name', 'standard_user')` |
+| `page.click(sel)` | Klik elemen | `await page.click('#login-button')` |
+| `page.selectOption(sel, val)` | Pilih dropdown | `await page.selectOption('.sort', 'az')` |
+| `page.locator(sel)` | Referensi ke elemen | `page.locator('.inventory_item_name')` |
 
 ### Assertions
 
 | Assertion | Kegunaan |
 |-----------|----------|
-| `expect(page).toHaveTitle('judul')` | Cek judul tab browser |
-| `expect(locator).toBeVisible()` | Elemen tampak di layar |
+| `expect(page).toHaveTitle('Swag Labs')` | Cek judul tab browser |
+| `expect(page).toHaveURL(/.*inventory\.html/)` | Cek URL dengan regex |
+| `expect(locator).toBeVisible()` | Elemen tampak |
 | `expect(locator).not.toBeVisible()` | Elemen tidak tampak |
-| `expect(locator).toHaveText('teks')` | Elemen mengandung teks persis |
-| `expect(locator).toContainText('teks')` | Elemen mengandung substring |
-| `expect(locator).toHaveValue('')` | Nilai input field |
-| `expect(locator).toHaveCount(n)` | Jumlah elemen yang ditemukan |
-
-### Arsitektur Playwright
-
-![Playwright Architecture](images/p9_playwright_arch.png)
+| `expect(locator).toHaveText('teks')` | Teks persis |
+| `expect(locator).toContainText('teks')` | Mengandung teks |
+| `expect(locator).toHaveCount(n)` | Jumlah elemen |
 
 ---
 
 ## Demo Sederhana 1 — Cek Judul Halaman
 
-Test paling dasar: buka halaman dan verifikasi judul tab browser.
+Test paling dasar: buka saucedemo.com dan verifikasi judul tab browser.
 
 Buat file `tests/simple1_judul.spec.js`. **Ketik seluruh kode dari gambar berikut** (jangan copy-paste):
 
 ![Demo Sederhana 1 — Kode](images/p9_simple1_code.png)
 
-Jalankan dengan browser terlihat (`--headed`):
+Jalankan dengan browser terlihat:
 
 ```bash
-npx playwright test tests/simple1_judul.spec.js --headed
+npx playwright test tests/simple1_judul.spec.js --headed --project=chromium
 ```
 
 Output yang diharapkan:
 
 ```
 Running 1 test using 1 worker
-  ✓  tests/simple1_judul.spec.js:3 › judul halaman harus "Todo App Sederhana"  (1.2s)
+  ✓  tests/simple1_judul.spec.js:3 › judul halaman harus "Swag Labs"  (1.3s)
 1 passed (2.1s)
 ```
 
-**Amati:** Browser Chrome akan terbuka secara otomatis, masuk ke `localhost:8000`, lalu menutup sendiri. Ini adalah Playwright mengendalikan browser secara programatik — sama seperti Selenium, tapi lebih ringkas.
+**Bandingkan dengan Praktek 8 Selenium:**
+```python
+# Selenium (Python) — 12 baris
+driver = webdriver.Chrome(options=options)
+try:
+    driver.get("https://www.saucedemo.com/")
+    assert driver.title == "Swag Labs"
+finally:
+    driver.quit()
+```
+```javascript
+// Playwright (JS) — 5 baris
+await page.goto('https://www.saucedemo.com/');
+await expect(page).toHaveTitle('Swag Labs');
+```
 
 ---
 
-## Demo Sederhana 2 — Tambah Item ke Daftar
+## Demo Sederhana 2 — Login dan Verifikasi Halaman Inventory
 
-Test interaksi: isi form, klik tombol, verifikasi item muncul dan input kembali kosong.
+Test interaksi form: isi username + password, klik login, verifikasi URL dan heading.
 
-Buat file `tests/simple2_tambah_item.spec.js`. **Ketik seluruh kode dari gambar berikut:**
+Buat file `tests/simple2_login.spec.js`. **Ketik seluruh kode dari gambar berikut:**
 
 ![Demo Sederhana 2 — Kode](images/p9_simple2_code.png)
 
 Jalankan:
 
 ```bash
-npx playwright test tests/simple2_tambah_item.spec.js --headed
+npx playwright test tests/simple2_login.spec.js --headed --project=chromium
 ```
 
 Output yang diharapkan:
 
 ```
 Running 1 test using 1 worker
-  ✓  tests/simple2_tambah_item.spec.js:3 › dapat menambah item baru ke daftar  (1.8s)
-1 passed (2.5s)
+  ✓  tests/simple2_login.spec.js:3 › login valid membawa ke halaman inventory  (2.1s)
+1 passed (2.9s)
 ```
 
-**Perhatikan perbedaan vs Selenium (Praktek 8):**
-- Tidak ada `WebDriverWait` atau `EC` — Playwright auto-wait
-- Tidak ada `driver.find_element(By.ID, ...)` — langsung `page.fill('#id', ...)`
-- `await expect(locator).toHaveValue('')` otomatis retry sampai kondisi terpenuhi
+**Poin kunci:**
+- `page.fill()` langsung mengisi field — tidak perlu `find_element().send_keys()`
+- `expect(page).toHaveURL(/.*inventory\.html/)` menggunakan **regex** untuk cek URL
+- Tidak ada `WebDriverWait` — Playwright auto-wait sampai `.title` elemen siap
 
 ---
 
-## Demo Advanced — Test CRUD Lengkap
+## Demo Advanced — Alur Pembelian End-to-End
 
-Test lebih lengkap dengan `test.describe` dan `test.beforeEach`. Kode ini **boleh di-copy** — fokus praktik ada di Soal.
+Test alur lengkap: login → tambah produk → checkout → konfirmasi. Skenario yang sama dengan Demo Advanced di Praktek 8, tapi ditulis dalam Playwright.
 
-Buat file `tests/todo.spec.js`:
+Buat file `tests/advanced_purchase_flow.spec.js`. Kode ini boleh di-copy:
 
 ```javascript
 const { test, expect } = require('@playwright/test');
 
-test.describe('Todo App', () => {
+const BASE_URL = 'https://www.saucedemo.com/';
 
-  test.beforeEach(async ({ page }) => {
-    await page.goto('/');
-  });
+async function login(page) {
+  await page.goto(BASE_URL);
+  await page.fill('#user-name', 'standard_user');
+  await page.fill('#password', 'secret_sauce');
+  await page.click('#login-button');
+  await expect(page).toHaveURL(/.*inventory\.html/);
+}
 
-  test('menampilkan pesan "Belum ada tugas" saat list kosong', async ({ page }) => {
-    await expect(page.locator('#empty-msg')).toBeVisible();
-    await expect(page.locator('#empty-msg')).toContainText('Belum ada tugas');
-    await expect(page.locator('.todo-item')).toHaveCount(0);
-  });
+// ── Test 1: Pembelian dua produk end-to-end ──────────────────────────────────
 
-  test('dapat menambah item baru ke daftar', async ({ page }) => {
-    await page.fill('#task-input', 'Beli susu');
-    await page.click('#add-btn');
+test('pembelian dua produk end-to-end', async ({ page }) => {
+  await login(page);
 
-    await expect(page.locator('.todo-item span')).toHaveText('Beli susu');
-    await expect(page.locator('#task-input')).toHaveValue('');
-    await expect(page.locator('#empty-msg')).not.toBeVisible();
-  });
+  // Tambah 2 produk ke cart
+  await page.click('#add-to-cart-sauce-labs-backpack');
+  await page.click('#add-to-cart-sauce-labs-bike-light');
+  await expect(page.locator('.shopping_cart_badge')).toHaveText('2');
 
-  test('dapat menambah item dengan menekan Enter', async ({ page }) => {
-    await page.fill('#task-input', 'Kerjakan PR');
-    await page.press('#task-input', 'Enter');
+  // Buka cart dan verifikasi 2 item
+  await page.click('.shopping_cart_link');
+  await expect(page).toHaveURL(/.*cart\.html/);
+  await expect(page.locator('.cart_item')).toHaveCount(2);
 
-    await expect(page.locator('.todo-item')).toHaveCount(1);
-  });
+  // Checkout — isi data pengiriman
+  await page.click('#checkout');
+  await page.fill('#first-name', 'Budi');
+  await page.fill('#last-name', 'Santoso');
+  await page.fill('#postal-code', '60285');
+  await page.click('#continue');
 
-  test('dapat menandai item sebagai selesai', async ({ page }) => {
-    await page.fill('#task-input', 'Kerjakan PR');
-    await page.click('#add-btn');
+  // Verifikasi ringkasan total
+  await expect(page).toHaveURL(/.*checkout-step-two\.html/);
+  await expect(page.locator('.summary_total_label')).toContainText('Total:');
 
-    await page.locator('.todo-item input[type=checkbox]').click();
+  // Selesaikan pembelian
+  await page.click('#finish');
+  await expect(page.locator('.complete-header')).toHaveText('Thank you for your order!');
+});
 
-    await expect(page.locator('.todo-item.done')).toHaveCount(1);
-  });
+// ── Test 2: Logout dan verifikasi kembali ke halaman login ───────────────────
 
-  test('dapat menghapus item dari daftar', async ({ page }) => {
-    await page.fill('#task-input', 'Tugas sementara');
-    await page.click('#add-btn');
+test('logout membawa kembali ke halaman login', async ({ page }) => {
+  await login(page);
 
-    await page.locator('.del-btn').click();
+  await page.click('#react-burger-menu-btn');
+  await page.click('#logout_sidebar_link');
 
-    await expect(page.locator('.todo-item')).toHaveCount(0);
-    await expect(page.locator('#empty-msg')).toBeVisible();
-  });
+  await expect(page).toHaveURL(BASE_URL);
+  await expect(page.locator('#login-button')).toBeVisible();
+});
 
-  test('alur CRUD lengkap: tambah 3 item, tandai 1, hapus semua', async ({ page }) => {
-    for (const task of ['Beli susu', 'Kerjakan PR', 'Beli buku']) {
-      await page.fill('#task-input', task);
-      await page.click('#add-btn');
-    }
-    await expect(page.locator('.todo-item')).toHaveCount(3);
+// ── Test 3: Sortir produk harga rendah ke tinggi ─────────────────────────────
 
-    await page.locator('.todo-item input[type=checkbox]').first().click();
-    await expect(page.locator('.todo-item.done')).toHaveCount(1);
+test('sortir produk harga rendah ke tinggi', async ({ page }) => {
+  await login(page);
 
-    await page.locator('.del-btn').first().click();
-    await page.locator('.del-btn').first().click();
-    await page.locator('.del-btn').first().click();
+  await page.selectOption('.product_sort_container', 'lohi');
 
-    await expect(page.locator('.todo-item')).toHaveCount(0);
-    await expect(page.locator('#empty-msg')).toBeVisible();
-  });
+  const prices = await page.locator('.inventory_item_price').evaluateAll(
+    els => els.map(el => parseFloat(el.textContent.replace('$', '')))
+  );
 
+  expect(prices).toEqual([...prices].sort((a, b) => a - b));
 });
 ```
 
-Jalankan semua test:
+Jalankan:
 
 ```bash
-npx playwright test tests/todo.spec.js --headed
+npx playwright test tests/advanced_purchase_flow.spec.js --headed
 ```
-
-Output yang diharapkan:
-
-![Test Output](images/p9_test_output.png)
 
 ---
 
 ## Cara Menjalankan Test
 
 ```bash
-# Jalankan semua test (headless — browser tidak terlihat)
+# Jalankan semua test (headless)
 npx playwright test
 
 # Jalankan dengan browser terlihat
 npx playwright test --headed
 
-# Jalankan satu file saja
-npx playwright test tests/todo.spec.js
+# Jalankan satu file
+npx playwright test tests/simple2_login.spec.js
 
 # Jalankan di browser tertentu
 npx playwright test --project=firefox
@@ -508,111 +371,122 @@ Contoh output CLI:
 
 ## Soal
 
-### Soal 1 — Setup (20 poin)
+### Soal 1 — Setup Playwright (20 poin)
 
-**Langkah yang harus dilakukan dan dikumpulkan:**
+**Langkah:**
 
-a) Buat folder `praktek9_e2e/` dan buat file `index.html` sesuai kode di atas.
+a) Buat folder `praktek9_e2e/` dan inisialisasi Playwright dengan `npm init playwright@latest`.
 
-b) Jalankan server lokal dan buka di browser. **Screenshot** halaman aplikasi di browser yang menunjukkan tampilan Todo App berjalan.
+b) Konfigurasi `playwright.config.js`:
+- `baseURL: 'https://www.saucedemo.com'`
+- `screenshot: 'only-on-failure'`
 
-c) Inisialisasi Playwright dengan `npm init playwright@latest`.
+c) Tampilkan isi `package.json` yang terbentuk:
 
-d) Konfigurasi `playwright.config.js` dengan `baseURL: 'http://localhost:8000'`.
+![package.json](images/p9_package_json.png)
 
-e) Jalankan test verifikasi (`page.goto('/') + toHaveTitle`) dan **screenshot** output terminal yang menunjukkan test lulus.
+d) Tampilkan isi `playwright.config.js` setelah dikonfigurasi:
 
-**Kriteria Soal 1:**
-- Screenshot aplikasi berjalan di browser (5 poin)
-- Playwright terinstall, `package.json` terbentuk (5 poin)
-- `playwright.config.js` memiliki `baseURL` yang benar (5 poin)
-- Test verifikasi lulus (5 poin)
+![playwright.config.js](images/p9_playwright_config.png)
+
+**Yang dikumpulkan:** Screenshot terminal saat instalasi berhasil dan screenshot kedua file konfigurasi.
 
 ---
 
-### Soal 2 — Test Tambah Item (30 poin)
+### Soal 2 — Login Negatif (30 poin)
 
-Buat file `tests/soal2_tambah.spec.js` dan implementasikan **3 test** berikut:
+Buat file `tests/soal2_login_negatif.spec.js` dengan **3 test** berikut:
 
 ```javascript
 const { test, expect } = require('@playwright/test');
 
-test.describe('Soal 2 - Tambah Item', () => {
+test.describe('Login Negatif', () => {
 
-  test('dapat menambah satu item baru', async ({ page }) => {
-    // TODO: buka halaman, isi input, klik Tambah
-    // Verifikasi: item muncul di daftar, input kembali kosong
+  test('username kosong tampilkan pesan error', async ({ page }) => {
+    await page.goto('/');
+    // TODO: isi password saja, biarkan username kosong
+    // TODO: klik login
+    // TODO: verifikasi pesan error muncul dan mengandung 'Username is required'
+    // TODO: verifikasi URL tidak berubah ke /inventory.html
   });
 
-  test('dapat menambah beberapa item sekaligus', async ({ page }) => {
-    // TODO: tambah 3 item berbeda satu per satu
-    // Verifikasi: daftar memiliki 3 item
+  test('password kosong tampilkan pesan error', async ({ page }) => {
+    await page.goto('/');
+    // TODO: isi username saja, biarkan password kosong
+    // TODO: klik login
+    // TODO: verifikasi pesan error mengandung 'Password is required'
   });
 
-  test('pesan kosong hilang saat ada item', async ({ page }) => {
-    // TODO: buka halaman, verifikasi pesan kosong muncul
-    // Tambah satu item, verifikasi pesan kosong hilang
+  test('akun terkunci tampilkan pesan locked out', async ({ page }) => {
+    await page.goto('/');
+    // TODO: login dengan username 'locked_out_user', password 'secret_sauce'
+    // TODO: verifikasi pesan error mengandung kata 'locked out'
   });
 
 });
 ```
 
 **Petunjuk:**
-- Gunakan `page.goto('/')` (baseURL sudah dikonfigurasi)
-- Gunakan `page.fill('#task-input', 'teks')` untuk isi input
-- Gunakan `page.click('#add-btn')` untuk klik tombol
-- Gunakan `expect(page.locator('.todo-item')).toHaveCount(n)` untuk cek jumlah
+- Locator pesan error: `page.locator('[data-test="error"]')`
+- Gunakan `toContainText()` bukan `toHaveText()` untuk substring match
+- Untuk cek URL bukan /inventory: `expect(page).not.toHaveURL(/.*inventory\.html/)`
 
 **Kriteria Soal 2:**
-- Test tambah satu item: lulus dengan assertion yang benar (10 poin)
-- Test tambah beberapa item: lulus, `toHaveCount(3)` diverifikasi (10 poin)
-- Test pesan kosong: lulus, `toBeVisible()` dan `not.toBeVisible()` digunakan (10 poin)
+- Test username kosong: lulus + assertion error + assertion URL (10 poin)
+- Test password kosong: lulus + assertion error (10 poin)
+- Test locked out: lulus + assertion mengandung 'locked out' (10 poin)
 
 ---
 
-### Soal 3 — Test Tandai Selesai & Hapus (30 poin)
+### Soal 3 — Filter dan Sortir Inventory (30 poin)
 
-Buat file `tests/soal3_crud.spec.js` dan implementasikan **3 test** berikut:
+Buat file `tests/soal3_filter.spec.js` dengan **3 test** berikut:
 
 ```javascript
 const { test, expect } = require('@playwright/test');
 
-test.describe('Soal 3 - Tandai Selesai dan Hapus', () => {
+async function login(page) {
+  await page.goto('/');
+  await page.fill('#user-name', 'standard_user');
+  await page.fill('#password', 'secret_sauce');
+  await page.click('#login-button');
+  await expect(page).toHaveURL(/.*inventory\.html/);
+}
 
-  test.beforeEach(async ({ page }) => {
-    await page.goto('/');
-    // Siapkan: tambah item untuk test berikutnya
-    await page.fill('#task-input', 'Tugas contoh');
-    await page.click('#add-btn');
+test.describe('Sortir Inventory', () => {
+
+  test('sortir Name A to Z: nama produk urut alfabet', async ({ page }) => {
+    await login(page);
+    // TODO: pilih opsi 'az' di dropdown .product_sort_container
+    // TODO: ambil semua teks .inventory_item_name
+    // TODO: verifikasi array sama dengan versi ter-sort
   });
 
-  test('dapat menandai item sebagai selesai', async ({ page }) => {
-    // TODO: klik checkbox item
-    // Verifikasi: item memiliki class 'done'
+  test('sortir Name Z to A: nama produk urut terbalik', async ({ page }) => {
+    await login(page);
+    // TODO: pilih opsi 'za'
+    // TODO: verifikasi array sama dengan versi ter-sort descending
   });
 
-  test('dapat menghapus item', async ({ page }) => {
-    // TODO: klik tombol Hapus
-    // Verifikasi: item tidak ada, pesan kosong muncul
-  });
-
-  test('dapat menghapus semua item', async ({ page }) => {
-    // TODO: tambah 2 item lagi, hapus semua satu per satu
-    // Verifikasi: daftar kosong, pesan "Belum ada tugas" muncul
+  test('sortir Price low to high: harga urut naik', async ({ page }) => {
+    await login(page);
+    // TODO: pilih opsi 'lohi'
+    // TODO: ambil semua harga dari .inventory_item_price (strip '$', parse float)
+    // TODO: verifikasi array sama dengan versi ter-sort ascending
   });
 
 });
 ```
 
 **Petunjuk:**
-- Locator checkbox: `page.locator('.todo-item input[type=checkbox]')`
-- Locator tombol hapus: `page.locator('.del-btn')`
-- Item yang sudah ditandai selesai memiliki class `done`: `.todo-item.done`
+- Sortir dengan: `await page.selectOption('.product_sort_container', 'az')`
+- Ambil semua teks: `page.locator('.inventory_item_name').evaluateAll(els => els.map(el => el.textContent))`
+- Sort descending: `[...names].sort().reverse()`
 
 **Kriteria Soal 3:**
-- Test tandai selesai: `toHaveCount(1)` pada `.todo-item.done` (10 poin)
-- Test hapus item: `toHaveCount(0)` dan pesan kosong muncul (10 poin)
-- Test hapus semua: loop hapus item sampai kosong (10 poin)
+- Test sortir A-Z: lulus + assertion array terurut (10 poin)
+- Test sortir Z-A: lulus + assertion array terbalik (10 poin)
+- Test sortir harga: lulus + assertion harga naik (10 poin)
 
 ---
 
@@ -626,7 +500,7 @@ const { defineConfig, devices } = require('@playwright/test');
 module.exports = defineConfig({
   testDir: './tests',
   use: {
-    baseURL: 'http://localhost:8000',
+    baseURL: 'https://www.saucedemo.com',
     screenshot: 'only-on-failure',
   },
   projects: [
@@ -637,7 +511,7 @@ module.exports = defineConfig({
 });
 ```
 
-b) Jalankan semua test di ketiga browser:
+b) Jalankan semua test di tiga browser sekaligus:
 
 ```bash
 npx playwright test
@@ -649,12 +523,14 @@ c) Buka HTML report:
 npx playwright show-report
 ```
 
-d) **Screenshot** HTML report yang menunjukkan semua test lulus di 3 browser.
+d) Screenshot hasil test yang menunjukkan semua test lulus di tiga browser.
+
+![Test Output](images/p9_test_output.png)
 
 **Kriteria Soal 4:**
 - `playwright.config.js` memiliki 3 project browser (4 poin)
-- Semua test lulus di Chromium, Firefox, WebKit (4 poin)
-- Screenshot HTML report dengan 3 browser hijau semua (2 poin)
+- Semua test Soal 2 dan 3 lulus di Chromium, Firefox, WebKit (4 poin)
+- Screenshot HTML report hijau semua (2 poin)
 
 ---
 
@@ -663,13 +539,13 @@ d) **Screenshot** HTML report yang menunjukkan semua test lulus di 3 browser.
 Jawab dalam file `REFLEKSI.md`:
 
 **Pertanyaan 1 (4 poin):**
-Jelaskan perbedaan antara *explicit wait* di Selenium dan *auto-wait* di Playwright. Kapan auto-wait bisa gagal (tidak cukup)? Berikan satu contoh skenario.
+Di Praktek 8 Selenium kamu menggunakan `WebDriverWait + expected_conditions` untuk menunggu URL berubah setelah login. Di Praktek 9 Playwright, kamu hanya menulis `await expect(page).toHaveURL(...)` tanpa wait eksplisit. Jelaskan bagaimana mekanisme auto-wait Playwright bekerja dan mengapa ini lebih andal dari `time.sleep()`.
 
 **Pertanyaan 2 (3 poin):**
-Dalam test Soal 3, kita menggunakan `test.beforeEach` untuk menyiapkan data. Apa keuntungan menggunakan `beforeEach` dibanding menyalin kode tambah item ke setiap test secara manual?
+Kita menguji situs yang **sama** (saucedemo.com) dengan dua tools berbeda. Sebutkan satu keuntungan konkret menggunakan Playwright dibanding Selenium, dan satu kondisi di mana Selenium mungkin lebih cocok.
 
 **Pertanyaan 3 (3 poin):**
-Sebutkan satu kasus di mana E2E testing **lebih tepat** dari unit testing, dan satu kasus di mana unit testing **lebih tepat** dari E2E testing. Jelaskan alasannya.
+Di Soal 4 kita menjalankan test yang sama di Chromium, Firefox, dan WebKit. Berikan satu contoh bug nyata yang **hanya muncul di satu browser** dan bisa terdeteksi dengan cross-browser testing seperti ini.
 
 ---
 
@@ -677,17 +553,16 @@ Sebutkan satu kasus di mana E2E testing **lebih tepat** dari unit testing, dan s
 
 ```
 praktek9_e2e/
-├── index.html                  ← Aplikasi Todo
-├── package.json                ← Konfigurasi Node.js
+├── package.json
 ├── package-lock.json
-├── playwright.config.js        ← Konfigurasi Playwright
+├── playwright.config.js
 └── tests/
-    ├── simple1_judul.spec.js   ← Demo Sederhana 1 (ketik sendiri)
-    ├── simple2_tambah_item.spec.js  ← Demo Sederhana 2 (ketik sendiri)
-    ├── todo.spec.js            ← Demo Advanced (copy boleh)
-    ├── soal2_tambah.spec.js    ← Jawaban Soal 2
-    ├── soal3_crud.spec.js      ← Jawaban Soal 3
-    └── REFLEKSI.md             ← Jawaban Soal 5
+    ├── simple1_judul.spec.js       ← Demo Sederhana 1 (ketik sendiri)
+    ├── simple2_login.spec.js       ← Demo Sederhana 2 (ketik sendiri)
+    ├── advanced_purchase_flow.spec.js  ← Demo Advanced (boleh copy)
+    ├── soal2_login_negatif.spec.js ← Jawaban Soal 2
+    ├── soal3_filter.spec.js        ← Jawaban Soal 3
+    └── REFLEKSI.md                 ← Jawaban Soal 5
 ```
 
 ---
@@ -696,10 +571,10 @@ praktek9_e2e/
 
 | Soal | Bobot | Kriteria |
 |------|-------|----------|
-| Soal 1 — Setup | 20 poin | App berjalan, Playwright terinstall, config baseURL, test verifikasi lulus |
-| Soal 2 — Tambah Item | 30 poin | 3 test lulus: tambah satu, tambah banyak, pesan kosong |
-| Soal 3 — Tandai & Hapus | 30 poin | 3 test lulus: tandai selesai, hapus item, hapus semua |
+| Soal 1 — Setup Playwright | 20 poin | Terinstall, `package.json` dan `playwright.config.js` benar |
+| Soal 2 — Login Negatif | 30 poin | 3 test: username kosong, password kosong, locked out |
+| Soal 3 — Filter Inventory | 30 poin | 3 test: A-Z, Z-A, harga naik — assertion array terurut |
 | Soal 4 — Cross-Browser | 10 poin | Config 3 browser, semua test hijau, screenshot report |
-| Soal 5 — Refleksi | 10 poin | Jawaban tepat tentang auto-wait, beforeEach, E2E vs unit |
+| Soal 5 — Refleksi | 10 poin | Jawaban tepat tentang auto-wait, Playwright vs Selenium, cross-browser |
 
 **Total: 100 poin**
